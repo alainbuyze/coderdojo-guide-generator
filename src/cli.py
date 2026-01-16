@@ -66,7 +66,7 @@ def get_output_filename(url: str, title: str) -> str:
 
 
 async def _generate(
-    url: str, output: str, verbose: bool, no_enhance: bool, no_translate: bool
+    url: str, output: str, verbose: bool, no_enhance: bool, no_translate: bool, no_qrcode: bool
 ) -> None:
     """Generate a guide from a single tutorial URL.
 
@@ -79,6 +79,7 @@ async def _generate(
         verbose: Enable verbose/debug logging output.
         no_enhance: Skip Upscayl image enhancement stage.
         no_translate: Skip Dutch translation stage.
+        no_qrcode: Skip QR code generation for hyperlinks.
 
     Raises:
         SystemExit: On critical failures (unsupported URL, fetch error, extraction error,
@@ -156,10 +157,10 @@ async def _generate(
                 console.print(f"[yellow]Warning:[/yellow] Translation failed: {e}")
                 # Continue with English content
 
-        # Generate markdown
+        # Generate markdown (with optional QR codes)
         progress.update(task, description="Generating guide...")
         try:
-            guide = generate_guide(content)
+            guide = generate_guide(content, output_dir=output_dir, add_qrcodes=not no_qrcode)
         except Exception as e:
             console.print(f"[red]Error generating guide:[/red] {e}")
             raise SystemExit(1)
@@ -210,7 +211,10 @@ def cli() -> None:
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 @click.option("--no-enhance", is_flag=True, help="Skip image enhancement")
 @click.option("--no-translate", is_flag=True, help="Skip Dutch translation")
-def generate(url: str, output: str, verbose: bool, no_enhance: bool, no_translate: bool) -> None:
+@click.option("--no-qrcode", is_flag=True, help="Skip QR code generation")
+def generate(
+    url: str, output: str, verbose: bool, no_enhance: bool, no_translate: bool, no_qrcode: bool
+) -> None:
     """Generate a guide from a single tutorial URL.
 
     Downloads the tutorial page, extracts content, downloads and optionally enhances
@@ -220,8 +224,9 @@ def generate(url: str, output: str, verbose: bool, no_enhance: bool, no_translat
         <output>/
             <guide-name>.md      # Dutch Markdown guide
             images/              # Downloaded (and enhanced) images
+            qrcodes/             # QR codes for hyperlinks (unless --no-qrcode)
     """
-    asyncio.run(_generate(url, output, verbose, no_enhance, no_translate))
+    asyncio.run(_generate(url, output, verbose, no_enhance, no_translate, no_qrcode))
 
 
 @cli.command()

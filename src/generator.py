@@ -10,6 +10,7 @@ from markdownify import MarkdownConverter
 
 from src.core.config import get_settings
 from src.core.errors import GenerationError
+from src.qrcode_processor import process_markdown_links
 from src.sources.base import ExtractedContent
 
 settings = get_settings()
@@ -111,21 +112,30 @@ def build_image_map(content: ExtractedContent) -> dict[str, str]:
     return image_map
 
 
-def generate_guide(content: ExtractedContent) -> str:
+def generate_guide(
+    content: ExtractedContent, output_dir: Path | None = None, add_qrcodes: bool = True
+) -> str:
     """Generate a Markdown guide from extracted content.
 
     Uses local image paths if available (from downloader/enhancer).
+    Optionally adds QR codes for hyperlinks.
 
     Args:
         content: Structured content from extraction.
+        output_dir: Output directory for QR codes (required if add_qrcodes=True).
+        add_qrcodes: Whether to generate and inject QR codes for links.
 
     Returns:
         Markdown formatted guide string.
 
     Raises:
         GenerationError: If guide generation fails.
+        ValueError: If add_qrcodes=True but output_dir is None.
     """
     logger.debug(f" * {inspect.currentframe().f_code.co_name} > Generating guide: {content.title}")
+
+    if add_qrcodes and output_dir is None:
+        raise ValueError("output_dir is required when add_qrcodes=True")
 
     try:
         parts = []
@@ -171,6 +181,14 @@ def generate_guide(content: ExtractedContent) -> str:
         guide = re.sub(r"\n{3,}", "\n\n", guide)
 
         logger.debug(f"    -> Generated {len(guide)} bytes of Markdown")
+
+        # Add QR codes for hyperlinks (optional)
+        if add_qrcodes and output_dir:
+            logger.debug("    -> Adding QR codes for hyperlinks")
+            guide, qr_info = process_markdown_links(guide, output_dir, add_qrcodes=True)
+            if qr_info:
+                logger.debug(f"    -> Added {len(qr_info)} QR codes")
+
         return guide
 
     except Exception as e:
