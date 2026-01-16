@@ -16,7 +16,8 @@ from src.downloader import download_images
 from src.enhancer import enhance_all_images
 from src.extractor import ContentExtractor
 from src.generator import generate_guide, save_guide
-from src.scraper import fetch_page
+from src.makecode_replacer import replace_makecode_screenshots
+from src.scraper import fetch_page, get_browser
 from src.translator import translate_content
 
 console = Console()
@@ -66,11 +67,11 @@ def get_output_filename(url: str, title: str) -> str:
 
 
 async def _generate(
-    url: str, output: str, verbose: bool, no_enhance: bool, no_translate: bool
+    url: str, output: str, verbose: bool, no_enhance: bool, no_translate: bool, no_makecode: bool
 ) -> None:
     """Generate a guide from a single tutorial URL.
 
-    Executes the full pipeline: fetch → extract → download images → enhance → translate → generate.
+    Executes the full pipeline: fetch → extract → replace MakeCode → download images → enhance → translate → generate.
     Each stage handles errors gracefully, with warnings for non-critical failures.
 
     Args:
@@ -79,11 +80,12 @@ async def _generate(
         verbose: Enable verbose/debug logging output.
         no_enhance: Skip Upscayl image enhancement stage.
         no_translate: Skip Dutch translation stage.
+        no_makecode: Skip MakeCode screenshot replacement.
 
     Raises:
         SystemExit: On critical failures (unsupported URL, fetch error, extraction error,
             generation error, or save error). Non-critical failures (download, enhance,
-            translate) log warnings and continue.
+            translate, makecode) log warnings and continue.
     """
     settings = get_settings()
 
@@ -122,6 +124,23 @@ async def _generate(
         except Exception as e:
             console.print(f"[red]Error extracting content:[/red] {e}")
             raise SystemExit(1)
+
+        # Replace MakeCode screenshots (optional)
+        if not no_makecode and settings.MAKECODE_REPLACE_ENABLED:
+            progress.update(task, description="Replacing MakeCode screenshots...")
+            try:
+                async with get_browser() as browser:
+                    content = await replace_makecode_screenshots(
+                        content, output_dir, browser, settings.MAKECODE_LANGUAGE
+                    )
+                replaced = content.metadata.get("makecode_replacements", 0)
+                if replaced > 0:
+                    progress.update(
+                        task, description=f"Replaced {replaced} MakeCode screenshot(s)"
+                    )
+            except Exception as e:
+                console.print(f"[yellow]Warning:[/yellow] MakeCode replacement failed: {e}")
+                # Continue with original images
 
         # Download images
         progress.update(task, description="Downloading images...")
@@ -210,18 +229,20 @@ def cli() -> None:
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 @click.option("--no-enhance", is_flag=True, help="Skip image enhancement")
 @click.option("--no-translate", is_flag=True, help="Skip Dutch translation")
-def generate(url: str, output: str, verbose: bool, no_enhance: bool, no_translate: bool) -> None:
+@click.option("--no-makecode", is_flag=True, help="Skip MakeCode screenshot replacement")
+def generate(url: str, output: str, verbose: bool, no_enhance: bool, no_translate: bool, no_makecode: bool) -> None:
     """Generate a guide from a single tutorial URL.
 
-    Downloads the tutorial page, extracts content, downloads and optionally enhances
-    images, translates to Dutch, and saves as a Markdown file with local images.
+    Downloads the tutorial page, extracts content, replaces MakeCode screenshots with
+    Dutch versions, downloads and optionally enhances images, translates to Dutch,
+    and saves as a Markdown file with local images.
 
     Output structure:
         <output>/
             <guide-name>.md      # Dutch Markdown guide
             images/              # Downloaded (and enhanced) images
     """
-    asyncio.run(_generate(url, output, verbose, no_enhance, no_translate))
+    asyncio.run(_generate(url, output, verbose, no_enhance, no_translate, no_makecode))
 
 
 @cli.command()

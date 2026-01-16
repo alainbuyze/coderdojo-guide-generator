@@ -17,19 +17,23 @@ Review default standards in @C:\Users\alain\CascadeProjects\Coderdojo\guides
 
 ```
 src/
-├── cli.py              # Command-line interface
-├── pipeline.py         # Orchestrates the full workflow
-├── scraper.py          # Playwright-based page fetcher
-├── extractor.py        # BeautifulSoup content extraction
-├── enhancer.py         # Upscayl image processing
-├── translator.py       # Dutch translation
-├── generator.py        # Markdown generation
+├── cli.py                  # Command-line interface
+├── pipeline.py             # Orchestrates the full workflow
+├── scraper.py              # Playwright-based page fetcher
+├── extractor.py            # BeautifulSoup content extraction
+├── makecode_detector.py    # Detects MakeCode links and code images
+├── makecode_capture.py     # Captures Dutch MakeCode screenshots
+├── makecode_replacer.py    # Replaces English screenshots with Dutch
+├── downloader.py           # Downloads images
+├── enhancer.py             # Upscayl image processing
+├── translator.py           # Dutch translation
+├── generator.py            # Markdown generation
 └── sources/
-    ├── base.py         # Base source adapter
-    └── elecfreaks.py   # Elecfreaks-specific extraction rules
-tests/                  # Test files
-output/                 # Generated guides (gitignored)
-cache/                  # Downloaded pages cache (gitignored)
+    ├── base.py             # Base source adapter
+    └── elecfreaks.py       # Elecfreaks-specific extraction rules
+tests/                      # Test files
+output/                     # Generated guides (gitignored)
+cache/                      # Downloaded pages cache (gitignored)
 ```
 
 ## Common Commands
@@ -44,6 +48,9 @@ playwright install chromium       # Install browser for scraping
 ```bash
 # Generate single guide
 python -m src.cli generate --url "<URL>" --output ./output
+
+# Generate guide without MakeCode replacement
+python -m src.cli generate --url "<URL>" --output ./output --no-makecode
 
 # Generate all guides from index
 python -m src.cli batch --index "<URL>" --output ./output
@@ -65,10 +72,13 @@ uv run ruff format src/
 
 ## Configuration
 
-Key paths (configurable via environment or config.toml):
+Key paths and settings (configurable via environment variables):
 - **Upscayl:** `C:\Program Files\Upscayl\Upscayl.exe`
 - **Output:** `./output`
 - **Cache:** `./cache`
+- **MakeCode Language:** `MAKECODE_LANGUAGE=nl` (default: Dutch)
+- **MakeCode Timeout:** `MAKECODE_TIMEOUT=30000` (ms, default: 30s)
+- **MakeCode Replacement:** `MAKECODE_REPLACE_ENABLED=True` (default: enabled)
 
 ## Code Conventions
 
@@ -93,6 +103,11 @@ Key paths (configurable via environment or config.toml):
 - 76 tutorials in Nezha Inventor's Kit
 - Upscayl has limited CLI support - may need workarounds
 - Rate limiting important to avoid IP blocking
+- MakeCode screenshots: Automatically replaces English code block images with Dutch versions
+  - Detects MakeCode links in "Reference" sections
+  - Matches code images to MakeCode project URLs
+  - Captures Dutch screenshots using Playwright
+  - Gracefully falls back to original images on failure
 
 ## External Resources
 

@@ -49,6 +49,13 @@ class Settings(BaseSettings):
     TRANSLATION_SOURCE: str = Field(default="en", description="Source language")
     TRANSLATION_TARGET: str = Field(default="nl", description="Target language (Dutch)")
 
+    # MakeCode settings
+    MAKECODE_LANGUAGE: str = Field(default="nl", description="Language for MakeCode screenshots")
+    MAKECODE_TIMEOUT: int = Field(default=30000, description="MakeCode page load timeout in ms")
+    MAKECODE_REPLACE_ENABLED: bool = Field(
+        default=True, description="Enable MakeCode screenshot replacement"
+    )
+
 
 # Singleton pattern for settings
 _settings: Settings | None = None
