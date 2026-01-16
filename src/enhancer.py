@@ -4,10 +4,18 @@ import inspect
 import logging
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
-from src.core.config import get_settings
-from src.sources.base import ExtractedContent
+# Handle imports for both module and standalone execution
+try:
+    from src.core.config import get_settings
+    from src.sources.base import ExtractedContent
+except ImportError:
+    # Running as standalone script
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from src.core.config import get_settings
+    from src.sources.base import ExtractedContent
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -68,32 +76,76 @@ def enhance_image(input_path: Path, output_path: Path) -> bool:
         logger.warning("    -> Upscayl binary not found, skipping enhancement")
         return False
 
+    # Check if models directory exists
+    models_dir = upscayl_bin.parent.parent / "models"  # Go from bin to resources, then to models
+    if not models_dir.exists():
+        logger.warning(f"    -> Models directory not found: {models_dir}")
+        return False
+
+    # Check if specific model file exists
+    model_file = models_dir / f"{settings.UPSCAYL_MODEL}.param"
+    if not model_file.exists():
+        logger.warning(f"    -> Model file not found: {model_file}")
+        available_models = list(models_dir.glob("*.param")) if models_dir.exists() else []
+        if available_models:
+            logger.debug(f"    -> Available models: {[m.stem for m in available_models]}")
+        return False
+
     # Ensure output directory exists
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Build command
+    upscayl_dir = upscayl_bin.parent  # resources/bin directory
+    resources_dir = upscayl_dir.parent  # resources directory
+
+    # Use absolute paths to avoid working directory issues
+    input_abs = input_path.resolve()
+    output_abs = output_path.resolve()
+
     cmd = [
         str(upscayl_bin),
         "-i",
-        str(input_path),
+        str(input_abs),
         "-o",
-        str(output_path),
-        "-s",
+        str(output_abs),
+        "-z",  # Scale parameter (not -s)
         str(settings.UPSCAYL_SCALE),
         "-n",
         settings.UPSCAYL_MODEL,
     ]
 
     try:
+        # Run without text capture first to avoid encoding issues
         result = subprocess.run(
             cmd,
+            cwd=str(resources_dir),  # Set working directory to resources directory
             capture_output=True,
-            text=True,
             timeout=120,  # 2 minute timeout per image
         )
 
+        # Decode stderr carefully for error messages
+        stderr_text = ""
+        if result.stderr:
+            try:
+                stderr_text = result.stderr.decode('utf-8', errors='replace')
+            except UnicodeDecodeError:
+                stderr_text = result.stderr.decode('latin1', errors='replace')
+
+        # Decode stdout if needed for debugging
+        stdout_text = ""
+        if result.stdout:
+            try:
+                stdout_text = result.stdout.decode('utf-8', errors='replace')
+            except UnicodeDecodeError:
+                stdout_text = result.stdout.decode('latin1', errors='replace')
+
         if result.returncode != 0:
-            logger.warning(f"    -> Enhancement failed: {result.stderr}")
+            logger.warning(f"    -> Enhancement failed: {stderr_text}")
+            logger.debug(f"    -> Command: {' '.join(cmd)}")
+            logger.debug(f"    -> Working directory: {resources_dir}")
+            logger.debug(f"    -> stdout: {stdout_text}")
+            logger.debug(f"    -> stderr: {stderr_text}")
+            logger.debug(f"    -> Return code: {result.returncode}")
             return False
 
         if output_path.exists():
@@ -101,6 +153,9 @@ def enhance_image(input_path: Path, output_path: Path) -> bool:
             return True
         else:
             logger.warning("    -> Output file not created")
+            logger.debug(f"    -> Expected output at: {output_path}")
+            logger.debug(f"    -> Output parent exists: {output_path.parent.exists()}")
+            logger.debug(f"    -> Output parent writable: {oct(output_path.parent.stat().st_mode)[-3:]}")
             return False
 
     except subprocess.TimeoutExpired:
@@ -178,3 +233,42 @@ def enhance_all_images(content: ExtractedContent, output_dir: Path) -> Extracted
 
     logger.debug(f"    -> Enhanced {enhanced_count}/{len(images_to_enhance)} images")
     return content
+
+
+if __name__ == "__main__":
+    """Test the enhancer with a single file."""
+    import argparse
+    import sys
+    from pathlib import Path
+
+    parser = argparse.ArgumentParser(description="Test image enhancement with Upscayl")
+    parser.add_argument("input", help="Input image path")
+    parser.add_argument("output", help="Output image path")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Enable debug logging")
+
+    args = parser.parse_args()
+
+    # Set up logging
+    if args.verbose:
+        logging.basicConfig(level=logging.DEBUG, format="%(levelname)s: %(message)s")
+    else:
+        logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+    # Validate input file
+    input_path = Path(args.input)
+    if not input_path.exists():
+        print(f"Error: Input file not found: {input_path}")
+        sys.exit(1)
+
+    # Enhance the image
+    output_path = Path(args.output)
+    print(f"Enhancing {input_path} -> {output_path}")
+
+    success = enhance_image(input_path, output_path)
+
+    if success:
+        print(f"✓ Enhancement successful: {output_path}")
+        print(f"  File size: {output_path.stat().st_size} bytes")
+    else:
+        print("✗ Enhancement failed")
+        sys.exit(1)

@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     )
 
     # Output settings
+    OUTPUT_ROOT_DIR: str = Field(default="./output", description="Root directory for all output files")
     OUTPUT_DIR: str = Field(default="./output", description="Output directory for generated guides")
     CACHE_DIR: str = Field(default="./cache", description="Cache directory for downloaded pages")
 

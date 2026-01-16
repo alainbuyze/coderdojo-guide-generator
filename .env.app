@@ -20,7 +20,7 @@ IMAGE_OUTPUT_DIR="images"
 # Enhancement settings (Upscayl)
 UPSCAYL_PATH="C:\Program Files\Upscayl\resources\bin\upscayl-bin.exe"
 UPSCAYL_SCALE=4
-UPSCAYL_MODEL="realesrgan-x4plus"
+UPSCAYL_MODEL="upscayl-standard-4x"
 ENHANCE_IMAGES=true
 
 # Translation settings

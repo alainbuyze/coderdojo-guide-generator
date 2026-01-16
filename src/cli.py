@@ -70,12 +70,20 @@ async def _generate(
 ) -> None:
     """Generate a guide from a single tutorial URL.
 
+    Executes the full pipeline: fetch → extract → download images → enhance → translate → generate.
+    Each stage handles errors gracefully, with warnings for non-critical failures.
+
     Args:
-        url: Tutorial URL to process.
-        output: Output directory path.
-        verbose: Enable verbose output.
-        no_enhance: Skip image enhancement.
-        no_translate: Skip Dutch translation.
+        url: Tutorial URL to process (must be from a supported source).
+        output: Output directory path for the generated guide and images.
+        verbose: Enable verbose/debug logging output.
+        no_enhance: Skip Upscayl image enhancement stage.
+        no_translate: Skip Dutch translation stage.
+
+    Raises:
+        SystemExit: On critical failures (unsupported URL, fetch error, extraction error,
+            generation error, or save error). Non-critical failures (download, enhance,
+            translate) log warnings and continue.
     """
     settings = get_settings()
 
@@ -203,7 +211,16 @@ def cli() -> None:
 @click.option("--no-enhance", is_flag=True, help="Skip image enhancement")
 @click.option("--no-translate", is_flag=True, help="Skip Dutch translation")
 def generate(url: str, output: str, verbose: bool, no_enhance: bool, no_translate: bool) -> None:
-    """Generate a guide from a single tutorial URL."""
+    """Generate a guide from a single tutorial URL.
+
+    Downloads the tutorial page, extracts content, downloads and optionally enhances
+    images, translates to Dutch, and saves as a Markdown file with local images.
+
+    Output structure:
+        <output>/
+            <guide-name>.md      # Dutch Markdown guide
+            images/              # Downloaded (and enhanced) images
+    """
     asyncio.run(_generate(url, output, verbose, no_enhance, no_translate))
 
 
