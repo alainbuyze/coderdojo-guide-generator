@@ -27,18 +27,18 @@ class QRCodeGenerator:
     def __init__(
         self,
         output_dir: Path,
-        size: int = 141,
+        size: int = 100,
         error_correction: int = ERROR_CORRECT_M,
-        box_size: int = 3,
+        box_size: int = 2,
         border: int = 2,
     ):
         """Initialize QR code generator.
 
         Args:
             output_dir: Directory to save QR code images.
-            size: Target size in pixels (default: 141px = 1.5cm at 300 DPI).
+            size: Target size in pixels (default: 100px).
             error_correction: QR error correction level (default: ERROR_CORRECT_M).
-            box_size: Size of each QR code module in pixels (default: 3).
+            box_size: Size of each QR code module in pixels (default: 2).
             border: Border size in modules (default: 2).
         """
         self.output_dir = output_dir / "qrcodes"
@@ -80,6 +80,13 @@ class QRCodeGenerator:
         Raises:
             Exception: If QR code generation or saving fails.
         """
+        # Validate URL
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        if not parsed.scheme or not parsed.netloc:
+            logger.debug(f"    -> Skipping invalid URL: {url}")
+            return None
+
         # Check cache first
         if url in self._cache:
             cached_filename = self._cache[url]
@@ -165,6 +172,10 @@ def process_markdown_links(markdown: str, output_dir: Path) -> tuple[str, list[Q
         filename = generator.get_qr_filename(url, idx)
         qr_path = generator.generate_qr_code(url, filename)
 
+        # Skip if URL is invalid (generate_qr_code returns None)
+        if qr_path is None:
+            continue
+
         # Create QR code info
         qr_info = QRCodeInfo(
             url=url,
@@ -175,8 +186,16 @@ def process_markdown_links(markdown: str, output_dir: Path) -> tuple[str, list[Q
         qr_codes.append(qr_info)
 
         # Inject QR code reference inline after the link
-        # Use relative path from output directory
+        # Use relative path from output directory with scaling if applicable
         qr_markdown = f" ![](qrcodes/{filename})"
+
+        # Apply QR code scaling if not 1.0
+        from src.core.config import get_settings
+        settings = get_settings()
+        if settings.QRCODE_SCALE != 1.0:
+            # Calculate new size
+            new_size = int(100 * settings.QRCODE_SCALE)  # Base size is 100px
+            qr_markdown = f" ![](qrcodes/{filename}|{new_size})"
 
         # Calculate insertion position (after the closing parenthesis)
         insert_pos = match.end() + offset

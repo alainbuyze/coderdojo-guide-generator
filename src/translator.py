@@ -39,6 +39,8 @@ def translate_text(text: str, source: str = "en", target: str = "nl") -> str:
     if not text or not text.strip():
         return text
 
+    logger.debug(f" * {inspect.currentframe().f_code.co_name} > Translating: {text[:100]}{'...' if len(text) > 100 else ''}")
+
     try:
         translator = GoogleTranslator(source=source, target=target)
         translated = translator.translate(text)

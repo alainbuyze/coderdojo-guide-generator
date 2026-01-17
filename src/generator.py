@@ -53,6 +53,30 @@ class GuideMarkdownConverter(MarkdownConverter):
         if local_path:
             src = local_path
 
+        # Apply image scaling if not 1.0
+        scale = settings.IMAGE_SCALE
+        if scale != 1.0:
+            # Calculate new dimensions if width/height attributes exist
+            width = el.get("width")
+            height = el.get("height")
+
+            if width:
+                try:
+                    new_width = int(float(width) * scale)
+                    src = f"{src}|{new_width}"
+                except (ValueError, TypeError):
+                    pass
+
+            if height:
+                try:
+                    new_height = int(float(height) * scale)
+                    if "|" in src:
+                        src = f"{src}x{new_height}"
+                    else:
+                        src = f"{src}|x{new_height}"
+                except (ValueError, TypeError):
+                    pass
+
         if title:
             return f'![{alt}]({src} "{title}")'
         return f"![{alt}]({src})"

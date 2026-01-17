@@ -247,11 +247,11 @@ def cli() -> None:
 @click.option("--url", required=True, help="Tutorial page URL")
 @click.option("--output", "-o", default="./output", help="Output directory")
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
-@click.option("--no-enhance", is_flag=True, help="Skip image enhancement")
-@click.option("--no-translate", is_flag=True, help="Skip Dutch translation")
-@click.option("--no-qrcode", is_flag=True, help="Skip QR code generation for hyperlinks")
-@click.option("--no-makecode", is_flag=True, help="Skip MakeCode screenshot replacement")
-def generate(url: str, output: str, verbose: bool, no_enhance: bool, no_translate: bool, no_makecode: bool, no_qrcode: bool) -> None:
+@click.option("--no-enhance", is_flag=True, default=False, help="Skip image enhancement")
+@click.option("--no-translate", is_flag=True, default=False, help="Skip Dutch translation")
+@click.option("--no-qrcode", is_flag=True, default=False, help="Skip QR code generation for hyperlinks")
+@click.option("--no-makecode", is_flag=True, default=False, help="Skip MakeCode screenshot replacement")
+def generate(url: str, output: str, verbose: bool, no_enhance: bool, no_translate: bool, no_qrcode: bool, no_makecode: bool) -> None:
     """Generate a guide from a single tutorial URL.
 
     Downloads the tutorial page, extracts content, replaces MakeCode screenshots with
@@ -264,8 +264,7 @@ def generate(url: str, output: str, verbose: bool, no_enhance: bool, no_translat
             images/              # Downloaded (and enhanced) images
             qrcodes/             # QR codes for hyperlinks (unless --no-qrcode)
     """
-    asyncio.run(_generate(url, output, verbose, no_enhance, no_translate, no_qrcode))
-    asyncio.run(_generate(url, output, verbose, no_enhance, no_translate, no_makecode))
+    asyncio.run(_generate(url, output, verbose, no_enhance, no_translate, no_qrcode, no_makecode))
 
 
 @cli.command()

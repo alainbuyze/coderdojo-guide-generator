@@ -77,7 +77,9 @@ async def download_image(url: str, output_path: Path, client: httpx.AsyncClient)
     Returns:
         True if download succeeded, False otherwise.
     """
-    logger.debug(f" * {inspect.currentframe().f_code.co_name} > Downloading: {url}")
+    from urllib.parse import urlparse
+    url_stem = urlparse(url).path.split('/')[-1].split('.')[0]
+    logger.debug(f" * {inspect.currentframe().f_code.co_name} > Downloading: {url_stem}")
 
     try:
         async with client.stream("GET", url) as response:
@@ -93,7 +95,7 @@ async def download_image(url: str, output_path: Path, client: httpx.AsyncClient)
                 async for chunk in response.aiter_bytes():
                     f.write(chunk)
 
-        logger.debug(f"    -> Saved to: {output_path}")
+        #logger.debug(f"    -> Saved to: {output_path}")
         return True
 
     except httpx.TimeoutException as e:

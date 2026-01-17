@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     # Image settings
     IMAGE_DOWNLOAD_TIMEOUT: int = Field(default=30, description="Image download timeout in seconds")
     IMAGE_OUTPUT_DIR: str = Field(default="images", description="Subdirectory for images")
+    IMAGE_SCALE: float = Field(default=1.0, description="Scale factor for images (1.0 = original size)")
 
     # Enhancement settings (Upscayl)
     UPSCAYL_PATH: str = Field(
@@ -43,6 +44,9 @@ class Settings(BaseSettings):
     UPSCAYL_SCALE: int = Field(default=4, description="Upscale factor (2 or 4)")
     UPSCAYL_MODEL: str = Field(default="realesrgan-x4plus", description="Upscayl model name")
     ENHANCE_IMAGES: bool = Field(default=True, description="Enable image enhancement")
+
+    # QR Code settings
+    QRCODE_SCALE: float = Field(default=1.0, description="Scale factor for QR codes (1.0 = original size)")
 
     # Translation settings
     TRANSLATE_ENABLED: bool = Field(default=True, description="Enable Dutch translation")

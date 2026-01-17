@@ -123,7 +123,8 @@ class MakeCodeImageDetector:
                 logger.debug(f"Matched image {img_idx} to link {links[i]}")
             else:
                 # More code images than links - log warning
-                logger.warning(f"Code image at index {img_idx} has no corresponding MakeCode link")
+                #logger.warning(f"Code image at index {img_idx} has no corresponding MakeCode link")
+                pass
 
         if len(links) > len(code_images):
             logger.warning(

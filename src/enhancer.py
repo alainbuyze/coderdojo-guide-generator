@@ -149,7 +149,7 @@ def enhance_image(input_path: Path, output_path: Path) -> bool:
             return False
 
         if output_path.exists():
-            logger.debug(f"    -> Enhanced: {output_path}")
+            #logger.debug(f"    -> Enhanced: {output_path}")
             return True
         else:
             logger.warning("    -> Output file not created")
@@ -211,6 +211,11 @@ def enhance_all_images(content: ExtractedContent, output_dir: Path) -> Extracted
 
         if not input_path.exists():
             logger.warning(f"    -> Local image not found: {input_path}")
+            continue
+
+        # Skip GIF files (animated images)
+        if input_path.suffix.lower() == '.gif':
+            logger.debug(f"    -> Skipping GIF file: {input_path.name}")
             continue
 
         # Generate enhanced path (add _enhanced before extension)
