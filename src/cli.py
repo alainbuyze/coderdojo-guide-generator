@@ -96,7 +96,7 @@ async def _generate(
     setup_logging(log_level)
 
     extractor = ContentExtractor()
-    output_dir = Path(output)
+    base_output_dir = Path(output)
 
     # Check if we can handle this URL
     if not extractor.can_extract(url):
@@ -126,6 +126,11 @@ async def _generate(
         except Exception as e:
             console.print(f"[red]Error extracting content:[/red] {e}")
             raise SystemExit(1)
+
+        # Create document-specific subdirectory
+        filename = get_output_filename(url, content.title)
+        output_dir = base_output_dir / filename
+        output_dir.mkdir(parents=True, exist_ok=True)
 
         # Replace MakeCode screenshots (optional)
         if not no_makecode and settings.MAKECODE_REPLACE_ENABLED:
@@ -192,7 +197,6 @@ async def _generate(
 
         # Save to file
         progress.update(task, description="Saving guide...")
-        filename = get_output_filename(url, content.title)
         output_path = output_dir / f"{filename}.md"
 
         try:
@@ -260,9 +264,10 @@ def generate(url: str, output: str, verbose: bool, no_enhance: bool, no_translat
 
     Output structure:
         <output>/
-            <guide-name>.md      # Dutch Markdown guide
-            images/              # Downloaded (and enhanced) images
-            qrcodes/             # QR codes for hyperlinks (unless --no-qrcode)
+            <guide-name>/
+                <guide-name>.md      # Dutch Markdown guide
+                images/              # Downloaded (and enhanced) images
+                qrcodes/             # QR codes for hyperlinks (unless --no-qrcode)
     """
     asyncio.run(_generate(url, output, verbose, no_enhance, no_translate, no_qrcode, no_makecode))
 
