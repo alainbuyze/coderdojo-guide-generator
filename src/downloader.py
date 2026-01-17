@@ -113,7 +113,7 @@ async def download_images(content: ExtractedContent, output_dir: Path) -> Extrac
 
     Args:
         content: Extracted content with images to download.
-        output_dir: Base output directory.
+        output_dir: Guide-specific output directory (e.g., output/guide-name).
 
     Returns:
         Updated ExtractedContent with local_path set for downloaded images.
@@ -152,8 +152,9 @@ async def download_images(content: ExtractedContent, output_dir: Path) -> Extrac
                 success = await download_image(url, output_path, client)
 
                 if success:
-                    # Store relative path for markdown
-                    image["local_path"] = str(Path(settings.IMAGE_OUTPUT_DIR) / filename)
+                    # Store relative path for markdown including guide subdirectory
+                    guide_name = output_dir.name
+                    image["local_path"] = str(Path(guide_name) / settings.IMAGE_OUTPUT_DIR / filename)
                 else:
                     logger.warning(f"    -> Failed to download image {idx}: {url}")
 
