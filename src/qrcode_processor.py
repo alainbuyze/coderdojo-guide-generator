@@ -129,7 +129,7 @@ def process_markdown_links(markdown: str, output_dir: Path) -> tuple[str, list[Q
 
     Args:
         markdown: Markdown content to process.
-        output_dir: Base output directory for the guide.
+        output_dir: Guide-specific output directory (e.g., output/guide-name).
 
     Returns:
         Tuple of:
@@ -138,7 +138,7 @@ def process_markdown_links(markdown: str, output_dir: Path) -> tuple[str, list[Q
 
     Example:
         Input:  "Visit [our site](https://example.com) for more info"
-        Output: "Visit [our site](https://example.com) ![](qrcodes/qr_001.png) for more info"
+        Output: "Visit [our site](https://example.com) ![](guide-name/qrcodes/qr_001.png) for more info"
     """
     if not markdown or not markdown.strip():
         logger.debug(" * process_markdown_links > No content to process")
@@ -164,6 +164,7 @@ def process_markdown_links(markdown: str, output_dir: Path) -> tuple[str, list[Q
     # Process each link
     qr_codes: list[QRCodeInfo] = []
     offset = 0  # Track string modifications
+    guide_name = output_dir.name
 
     for idx, match in enumerate(matches, start=1):
         url = match.group(2)
@@ -186,8 +187,8 @@ def process_markdown_links(markdown: str, output_dir: Path) -> tuple[str, list[Q
         qr_codes.append(qr_info)
 
         # Inject QR code reference inline after the link
-        # Use relative path from output directory with scaling if applicable
-        qr_markdown = f" ![](qrcodes/{filename})"
+        # Use relative path including guide subdirectory
+        qr_markdown = f" ![]({guide_name}/qrcodes/{filename})"
 
         # Apply QR code scaling if not 1.0
         from src.core.config import get_settings
@@ -195,7 +196,7 @@ def process_markdown_links(markdown: str, output_dir: Path) -> tuple[str, list[Q
         if settings.QRCODE_SCALE != 1.0:
             # Calculate new size
             new_size = int(100 * settings.QRCODE_SCALE)  # Base size is 100px
-            qr_markdown = f" ![](qrcodes/{filename}|{new_size})"
+            qr_markdown = f" ![]({guide_name}/qrcodes/{filename}|{new_size})"
 
         # Calculate insertion position (after the closing parenthesis)
         insert_pos = match.end() + offset

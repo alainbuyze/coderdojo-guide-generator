@@ -127,13 +127,17 @@ async def _generate(
             console.print(f"[red]Error extracting content:[/red] {e}")
             raise SystemExit(1)
 
+        # Create guide-specific subdirectory for assets
+        filename = get_output_filename(url, content.title)
+        guide_subdir = output_dir / filename
+
         # Replace MakeCode screenshots (optional)
         if not no_makecode and settings.MAKECODE_REPLACE_ENABLED:
             progress.update(task, description="Replacing MakeCode screenshots...")
             try:
                 async with get_browser() as browser:
                     content = await replace_makecode_screenshots(
-                        content, output_dir, browser, settings.MAKECODE_LANGUAGE
+                        content, guide_subdir, browser, settings.MAKECODE_LANGUAGE
                     )
                 replaced = content.metadata.get("makecode_replacements", 0)
                 if replaced > 0:
@@ -147,7 +151,7 @@ async def _generate(
         # Download images
         progress.update(task, description="Downloading images...")
         try:
-            content = await download_images(content, output_dir)
+            content = await download_images(content, guide_subdir)
             downloaded = sum(1 for img in content.images if img.get("local_path"))
             progress.update(
                 task, description=f"Downloaded {downloaded}/{len(content.images)} images"
@@ -160,7 +164,7 @@ async def _generate(
         if not no_enhance and any(img.get("local_path") for img in content.images):
             progress.update(task, description="Enhancing images...")
             try:
-                content = enhance_all_images(content, output_dir)
+                content = enhance_all_images(content, guide_subdir)
                 enhanced = sum(1 for img in content.images if img.get("enhanced_path"))
                 progress.update(task, description=f"Enhanced {enhanced} images")
             except Exception as e:
@@ -180,19 +184,18 @@ async def _generate(
         # Generate markdown
         progress.update(task, description="Generating guide...")
         try:
-            guide = generate_guide(content, output_dir=output_dir, add_qrcodes=not no_qrcode)
+            guide = generate_guide(content, output_dir=guide_subdir, add_qrcodes=not no_qrcode)
         except Exception as e:
             console.print(f"[red]Error generating guide:[/red] {e}")
             raise SystemExit(1)
 
         # Count QR codes if generated
-        qr_count = guide.count("![](qrcodes/") if not no_qrcode else 0
+        qr_count = guide.count("/qrcodes/") if not no_qrcode else 0
         if qr_count:
             progress.update(task, description=f"Generated {qr_count} QR codes")
 
-        # Save to file
+        # Save to file at root output directory
         progress.update(task, description="Saving guide...")
-        filename = get_output_filename(url, content.title)
         output_path = output_dir / f"{filename}.md"
 
         try:
@@ -260,9 +263,10 @@ def generate(url: str, output: str, verbose: bool, no_enhance: bool, no_translat
 
     Output structure:
         <output>/
-            <guide-name>.md      # Dutch Markdown guide
-            images/              # Downloaded (and enhanced) images
-            qrcodes/             # QR codes for hyperlinks (unless --no-qrcode)
+            <guide-name>.md              # Dutch Markdown guide
+            <guide-name>/
+                images/                  # Downloaded (and enhanced) images
+                qrcodes/                 # QR codes for hyperlinks (unless --no-qrcode)
     """
     asyncio.run(_generate(url, output, verbose, no_enhance, no_translate, no_qrcode, no_makecode))
 
