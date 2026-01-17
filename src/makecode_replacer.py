@@ -68,14 +68,15 @@ async def replace_makecode_screenshots(
 
     # Step 4: Update image references
     replaced_count = 0
+    guide_name = output_dir.name
     for img_idx, screenshot_path in captured_screenshots.items():
         if img_idx < len(content.images):
             # Store original for potential backup/debugging
             original_src = content.images[img_idx].get("src")
             logger.debug(f"    -> Replacing image {img_idx}: {original_src}")
 
-            # Update image dict with Dutch screenshot
-            relative_path = str(Path(settings.IMAGE_OUTPUT_DIR) / screenshot_path.name)
+            # Update image dict with Dutch screenshot (include guide subdirectory)
+            relative_path = str(Path(guide_name) / settings.IMAGE_OUTPUT_DIR / screenshot_path.name)
             content.images[img_idx]["local_path"] = relative_path
             content.images[img_idx]["makecode_url"] = image_to_link_map[img_idx]
             content.images[img_idx]["replaced_with_dutch"] = True
