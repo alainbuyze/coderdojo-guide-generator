@@ -44,8 +44,8 @@ async def replace_makecode_screenshots(
 
     logger.debug(f"    -> Found {len(makecode_links)} MakeCode links")
 
-    # Step 2: Match images to links
-    image_to_link_map = detector.match_images_to_links(content.images, makecode_links)
+    # Step 2: Match images to links (pass sections for context-based detection)
+    image_to_link_map = detector.match_images_to_links(content.images, makecode_links, content.sections)
     if not image_to_link_map:
         logger.debug("    -> No code images matched to links, skipping replacement")
         return content
@@ -75,7 +75,7 @@ async def replace_makecode_screenshots(
             original_src = content.images[img_idx].get("src")
             logger.debug(f"    -> Replacing image {img_idx}: {original_src}")
 
-            # Update image dict with Dutch screenshot (include guide subdirectory)
+            # Update image dict with Dutch screenshot (relative to root output directory)
             relative_path = str(Path(guide_name) / settings.IMAGE_OUTPUT_DIR / screenshot_path.name)
             content.images[img_idx]["local_path"] = relative_path
             content.images[img_idx]["makecode_url"] = image_to_link_map[img_idx]

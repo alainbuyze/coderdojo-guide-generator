@@ -152,7 +152,7 @@ async def download_images(content: ExtractedContent, output_dir: Path) -> Extrac
                 success = await download_image(url, output_path, client)
 
                 if success:
-                    # Store relative path for markdown including guide subdirectory
+                    # Store relative path for markdown (relative to root output directory)
                     guide_name = output_dir.name
                     image["local_path"] = str(Path(guide_name) / settings.IMAGE_OUTPUT_DIR / filename)
                 else:

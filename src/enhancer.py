@@ -205,9 +205,11 @@ def enhance_all_images(content: ExtractedContent, output_dir: Path) -> Extracted
     logger.debug(f"    -> Found {len(images_to_enhance)} images to enhance")
 
     enhanced_count = 0
+    # Use parent directory since local_path includes guide subfolder name
+    base_dir = output_dir.parent
     for image in images_to_enhance:
         local_path = image["local_path"]
-        input_path = output_dir / local_path
+        input_path = base_dir / local_path
 
         if not input_path.exists():
             logger.warning(f"    -> Local image not found: {input_path}")

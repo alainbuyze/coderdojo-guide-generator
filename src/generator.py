@@ -108,6 +108,14 @@ def html_to_markdown(html: str | Tag, image_map: dict[str, str] | None = None) -
     # Clean up excessive whitespace
     md = re.sub(r"\n{3,}", "\n\n", md)
 
+    # Ensure space before markdown links when preceded by a word character
+    # e.g., "de[link]" -> "de [link]"
+    md = re.sub(r"(\w)\[([^\]]+)\]\(", r"\1 [\2](", md)
+
+    # Ensure space after markdown links when followed by a word character
+    # e.g., "[link](url)word" -> "[link](url) word"
+    md = re.sub(r"\]\(([^)]+)\)(\w)", r"](\1) \2", md)
+
     return md.strip()
 
 
@@ -182,6 +190,10 @@ def generate_guide(
             heading = section.get("heading", "")
             level = section.get("level", 2)
             section_content = section.get("content", [])
+
+            # Skip section if heading duplicates the title
+            if heading and heading == content.title:
+                continue
 
             if heading:
                 prefix = "#" * level

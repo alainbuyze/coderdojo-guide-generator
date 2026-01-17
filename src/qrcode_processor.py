@@ -149,25 +149,48 @@ def process_markdown_links(markdown: str, output_dir: Path) -> tuple[str, list[Q
     # Pattern to match markdown links: [text](url)
     link_pattern = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 
-    # Find all links
-    matches = list(link_pattern.finditer(markdown))
+    # Pattern to match autolinks: <url>
+    autolink_pattern = re.compile(r"<(https?://[^>]+)>")
 
-    if not matches:
+    # Find all standard links
+    standard_matches = list(link_pattern.finditer(markdown))
+
+    # Find all autolinks
+    autolink_matches = list(autolink_pattern.finditer(markdown))
+
+    if not standard_matches and not autolink_matches:
         logger.debug("    -> No links found")
         return markdown, []
 
-    logger.debug(f"    -> Found {len(matches)} links")
+    logger.debug(f"    -> Found {len(standard_matches)} standard links, {len(autolink_matches)} autolinks")
 
     # Initialize generator
     generator = QRCodeGenerator(output_dir)
+
+    # Combine all matches with their type, sorted by position
+    all_matches = []
+    for match in standard_matches:
+        all_matches.append(("standard", match, match.start()))
+    for match in autolink_matches:
+        all_matches.append(("autolink", match, match.start()))
+
+    # Sort by position in document
+    all_matches.sort(key=lambda x: x[2])
 
     # Process each link
     qr_codes: list[QRCodeInfo] = []
     offset = 0  # Track string modifications
     guide_name = output_dir.name
 
-    for idx, match in enumerate(matches, start=1):
-        url = match.group(2)
+    from src.core.config import get_settings
+    settings = get_settings()
+
+    for idx, (match_type, match, _) in enumerate(all_matches, start=1):
+        # Extract URL based on match type
+        if match_type == "standard":
+            url = match.group(2)  # [text](url) -> url is group 2
+        else:
+            url = match.group(1)  # <url> -> url is group 1
 
         # Generate QR code
         filename = generator.get_qr_filename(url, idx)
@@ -187,18 +210,18 @@ def process_markdown_links(markdown: str, output_dir: Path) -> tuple[str, list[Q
         qr_codes.append(qr_info)
 
         # Inject QR code reference inline after the link
-        # Use relative path including guide subdirectory
-        qr_markdown = f" ![]({guide_name}/qrcodes/{filename})"
+        # Build path consistently with other image paths
+        qr_relative_path = str(Path(guide_name) / "qrcodes" / filename)
 
-        # Apply QR code scaling if not 1.0
-        from src.core.config import get_settings
-        settings = get_settings()
+        # Use HTML img tag for better compatibility with markdown renderers
         if settings.QRCODE_SCALE != 1.0:
             # Calculate new size
             new_size = int(100 * settings.QRCODE_SCALE)  # Base size is 100px
-            qr_markdown = f" ![]({guide_name}/qrcodes/{filename}|{new_size})"
+            qr_markdown = f' <img src="{qr_relative_path}" width="{new_size}">'
+        else:
+            qr_markdown = f' <img src="{qr_relative_path}">'
 
-        # Calculate insertion position (after the closing parenthesis)
+        # Calculate insertion position (after the link ends)
         insert_pos = match.end() + offset
 
         # Insert QR code reference

@@ -46,9 +46,11 @@ class ElecfreaksAdapter(BaseSourceAdapter):
 
     # CSS selectors for main content (in priority order)
     CONTENT_SELECTORS = [
-        "article",
+        ".theme-doc-markdown.markdown",  # Most specific for Docusaurus
         ".theme-doc-markdown",
+        "article .markdown",
         ".markdown",
+        "article",
         "main",
         ".docMainContainer",
     ]
@@ -145,12 +147,13 @@ class ElecfreaksAdapter(BaseSourceAdapter):
         sections = []
         current_section: dict = {"heading": "", "content": [], "level": 0}
 
+        # Remove h1 from content to avoid duplication (title already extracted)
+        h1 = content.find("h1")
+        if h1:
+            h1.decompose()
+
         for element in content.children:
             if not isinstance(element, Tag):
-                continue
-
-            if element.name == "h1":
-                # Skip title, already extracted
                 continue
 
             if element.name in ("h2", "h3", "h4"):

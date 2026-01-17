@@ -24,6 +24,18 @@ class MakeCodeImageDetector:
         "scratch",
         "blocks",
         "script",
+        "coding",
+        "programma",  # Dutch for program
+    ]
+
+    # Section headings that indicate code content
+    CODE_SECTION_HEADINGS = [
+        "code",
+        "program",
+        "makecode",
+        "coding",
+        "codeer",  # Dutch for code
+        "programmeer",  # Dutch for program
     ]
 
     def find_makecode_links(self, sections: list[dict[str, Any]]) -> list[str]:
@@ -81,19 +93,67 @@ class MakeCodeImageDetector:
 
         return False
 
+    def _is_code_section(self, heading: str) -> bool:
+        """Check if a section heading indicates code content.
+
+        Args:
+            heading: Section heading text.
+
+        Returns:
+            True if the heading suggests code content.
+        """
+        heading_lower = heading.lower()
+        return any(keyword in heading_lower for keyword in self.CODE_SECTION_HEADINGS)
+
+    def find_code_images_in_sections(
+        self, sections: list[dict[str, Any]], all_images: list[dict[str, str]]
+    ) -> list[int]:
+        """Find image indices that appear in code-related sections.
+
+        Args:
+            sections: List of section dicts with heading and content.
+            all_images: List of all image dicts.
+
+        Returns:
+            List of image indices that are in code sections.
+        """
+        code_image_indices = []
+
+        # Build a set of image srcs for quick lookup
+        image_src_to_idx = {img.get("src", ""): idx for idx, img in enumerate(all_images)}
+
+        for section in sections:
+            heading = section.get("heading", "")
+            if not self._is_code_section(heading):
+                continue
+
+            # Find images in this section's content
+            content = section.get("content", [])
+            for element in content:
+                element_str = str(element)
+                # Look for img tags
+                for src, idx in image_src_to_idx.items():
+                    if src and src in element_str:
+                        if idx not in code_image_indices:
+                            code_image_indices.append(idx)
+                            logger.debug(f"Found code image {idx} in section '{heading}'")
+
+        return code_image_indices
+
     def match_images_to_links(
-        self, images: list[dict[str, str]], links: list[str]
+        self, images: list[dict[str, str]], links: list[str], sections: list[dict[str, Any]] | None = None
     ) -> dict[int, str]:
         """Match code screenshots to their MakeCode project URLs.
 
         Uses heuristics to pair images with links:
-        1. Code images typically appear before reference links
-        2. Multiple code images map to multiple links in order
-        3. Only images matching code keywords are considered
+        1. Images in code-related sections (by heading)
+        2. Images with code keywords in alt/title/src
+        3. Multiple code images map to multiple links in order
 
         Args:
             images: List of image dicts with src, alt, title.
             links: List of MakeCode project URLs.
+            sections: Optional list of sections for context-based detection.
 
         Returns:
             Dictionary mapping image index to MakeCode URL.
@@ -104,31 +164,41 @@ class MakeCodeImageDetector:
             logger.debug("No MakeCode links to match")
             return {}
 
-        # Find all code images
-        code_images = [
-            (idx, img) for idx, img in enumerate(images) if self._is_code_image(img, idx)
+        # Find code images by keyword matching
+        keyword_code_images = [
+            idx for idx, img in enumerate(images) if self._is_code_image(img, idx)
         ]
 
-        if not code_images:
+        # Find code images by section context
+        section_code_images = []
+        if sections:
+            section_code_images = self.find_code_images_in_sections(sections, images)
+
+        # Combine and deduplicate, preserving order
+        all_code_indices = []
+        for idx in keyword_code_images + section_code_images:
+            if idx not in all_code_indices:
+                all_code_indices.append(idx)
+
+        # Sort by index to maintain image order
+        all_code_indices.sort()
+
+        if not all_code_indices:
             logger.debug("No code images detected")
             return {}
 
-        logger.debug(f"Found {len(code_images)} code images")
+        logger.debug(f"Found {len(all_code_indices)} code images (keywords: {len(keyword_code_images)}, sections: {len(section_code_images)})")
 
         # Match images to links in order
         matches = {}
-        for i, (img_idx, _) in enumerate(code_images):
+        for i, img_idx in enumerate(all_code_indices):
             if i < len(links):
                 matches[img_idx] = links[i]
                 logger.debug(f"Matched image {img_idx} to link {links[i]}")
-            else:
-                # More code images than links - log warning
-                #logger.warning(f"Code image at index {img_idx} has no corresponding MakeCode link")
-                pass
 
-        if len(links) > len(code_images):
+        if len(links) > len(all_code_indices):
             logger.warning(
-                f"Found {len(links)} MakeCode links but only {len(code_images)} code images"
+                f"Found {len(links)} MakeCode links but only {len(all_code_indices)} code images"
             )
 
         return matches
