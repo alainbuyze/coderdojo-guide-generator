@@ -1,9 +1,9 @@
 # CoderDojo Guide Generator Configuration
 
-# Output settings
-OUTPUT_DIR="./output"
-CACHE_DIR="./cache"
-LOG_DIR=logs  
+# Output settings (subdirectories within OUTPUT_ROOT_DIR)
+OUTPUT_DIR="Projects"
+CACHE_DIR="cache"
+LOG_DIR="logs"
 
 # Scraping settings
 RATE_LIMIT_SECONDS=2

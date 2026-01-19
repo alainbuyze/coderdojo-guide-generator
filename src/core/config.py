@@ -1,6 +1,8 @@
 """Configuration management using Pydantic Settings."""
 
-from pydantic import Field
+from pathlib import Path
+
+from pydantic import Field, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,9 +17,10 @@ class Settings(BaseSettings):
     )
 
     # Output settings
-    OUTPUT_ROOT_DIR: str = Field(default="./output", description="Root directory for all output files")
-    OUTPUT_DIR: str = Field(default="./output", description="Output directory for generated guides")
-    CACHE_DIR: str = Field(default="./cache", description="Cache directory for downloaded pages")
+    OUTPUT_ROOT_DIR: str = Field(default=".", description="Root directory for all output files")
+    OUTPUT_DIR: str = Field(default="output", description="Subdirectory within OUTPUT_ROOT_DIR for generated guides")
+    CACHE_DIR: str = Field(default="cache", description="Subdirectory within OUTPUT_ROOT_DIR for cached pages")
+    LOG_DIR: str = Field(default="logs", description="Subdirectory within OUTPUT_ROOT_DIR for log files")
 
     # Scraping settings
     RATE_LIMIT_SECONDS: float = Field(default=2.0, description="Delay between requests")
@@ -70,6 +73,25 @@ class Settings(BaseSettings):
     PDF_CONSTRUCTION_PER_PAGE: int = Field(
         default=2, description="Number of construction diagrams per page"
     )
+
+    # Computed properties for full paths
+    @computed_field
+    @property
+    def output_path(self) -> Path:
+        """Full path to output directory (OUTPUT_ROOT_DIR / OUTPUT_DIR)."""
+        return Path(self.OUTPUT_ROOT_DIR) / self.OUTPUT_DIR
+
+    @computed_field
+    @property
+    def cache_path(self) -> Path:
+        """Full path to cache directory (OUTPUT_ROOT_DIR / CACHE_DIR)."""
+        return Path(self.OUTPUT_ROOT_DIR) / self.CACHE_DIR
+
+    @computed_field
+    @property
+    def log_path(self) -> Path:
+        """Full path to log directory (OUTPUT_ROOT_DIR / LOG_DIR)."""
+        return Path(self.OUTPUT_ROOT_DIR) / self.LOG_DIR
 
 
 # Singleton pattern for settings
