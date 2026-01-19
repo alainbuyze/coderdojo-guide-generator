@@ -111,3 +111,107 @@ def test_extract_metadata():
 
     assert content.metadata["description"] == "A test tutorial about electronics"
     assert content.metadata["url"] == "https://wiki.elecfreaks.com/test"
+
+
+def test_extract_tutorial_links_basic():
+    """Test extracting tutorial links from index page."""
+    adapter = ElecfreaksAdapter()
+
+    html = """
+    <html>
+    <body>
+    <ul>
+        <li><a href="/en/microbit/nezha-kit/case_01">Case 01: Robot</a></li>
+        <li><a href="/en/microbit/nezha-kit/case_02">Case 02: Car</a></li>
+        <li><a href="/en/microbit/nezha-kit/case_03">Case 03: Crane</a></li>
+    </ul>
+    </body>
+    </html>
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    tutorials = adapter.extract_tutorial_links(soup, "https://wiki.elecfreaks.com/en/microbit/nezha-kit/")
+
+    assert len(tutorials) == 3
+    assert tutorials[0].title == "Case 01: Robot"
+    assert "case_01" in tutorials[0].url
+    assert tutorials[1].title == "Case 02: Car"
+    assert tutorials[2].title == "Case 03: Crane"
+
+
+def test_extract_tutorial_links_absolute_urls():
+    """Test that relative URLs are made absolute."""
+    adapter = ElecfreaksAdapter()
+
+    html = """
+    <html>
+    <body>
+    <a href="/en/microbit/case_01">Case 01</a>
+    <a href="https://wiki.elecfreaks.com/en/microbit/case_02">Case 02</a>
+    </body>
+    </html>
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    tutorials = adapter.extract_tutorial_links(soup, "https://wiki.elecfreaks.com/en/microbit/")
+
+    assert len(tutorials) == 2
+    assert tutorials[0].url.startswith("https://")
+    assert tutorials[1].url.startswith("https://")
+
+
+def test_extract_tutorial_links_deduplication():
+    """Test that duplicate URLs are removed."""
+    adapter = ElecfreaksAdapter()
+
+    html = """
+    <html>
+    <body>
+    <a href="/en/case_01">Case 01</a>
+    <a href="/en/case_01">Case 01 Again</a>
+    <a href="/en/case_02">Case 02</a>
+    </body>
+    </html>
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    tutorials = adapter.extract_tutorial_links(soup, "https://wiki.elecfreaks.com/en/")
+
+    assert len(tutorials) == 2
+
+
+def test_extract_tutorial_links_no_case_links():
+    """Test that non-case links are ignored."""
+    adapter = ElecfreaksAdapter()
+
+    html = """
+    <html>
+    <body>
+    <a href="/en/about">About</a>
+    <a href="/en/contact">Contact</a>
+    <a href="/en/case_01">Case 01</a>
+    </body>
+    </html>
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    tutorials = adapter.extract_tutorial_links(soup, "https://wiki.elecfreaks.com/en/")
+
+    assert len(tutorials) == 1
+    assert tutorials[0].title == "Case 01"
+
+
+def test_extract_tutorial_links_skips_current_page():
+    """Test that the current page URL is not included."""
+    adapter = ElecfreaksAdapter()
+
+    html = """
+    <html>
+    <body>
+    <a href="/en/microbit/case_index/">Case Index</a>
+    <a href="/en/microbit/case_01">Case 01</a>
+    </body>
+    </html>
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    # The current page contains "case" in its path
+    tutorials = adapter.extract_tutorial_links(soup, "https://wiki.elecfreaks.com/en/microbit/case_index/")
+
+    assert len(tutorials) == 1
+    assert "case_01" in tutorials[0].url

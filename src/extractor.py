@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 
 from src.core.config import get_settings
 from src.core.errors import ExtractionError
-from src.sources.base import BaseSourceAdapter, ExtractedContent
+from src.sources.base import BaseSourceAdapter, ExtractedContent, TutorialLink
 from src.sources.elecfreaks import ElecfreaksAdapter
 
 settings = get_settings()
@@ -81,3 +81,43 @@ class ContentExtractor:
             True if an adapter is available for this URL.
         """
         return self._find_adapter(url) is not None
+
+    def extract_tutorial_links(self, html: str, url: str) -> list[TutorialLink]:
+        """Extract tutorial links from an index page.
+
+        Args:
+            html: Raw HTML content of the index page.
+            url: The source URL.
+
+        Returns:
+            List of TutorialLink objects with url and title.
+
+        Raises:
+            ExtractionError: If no adapter can handle the URL or extraction fails.
+        """
+        logger.debug(f" * {inspect.currentframe().f_code.co_name} > Processing URL: {url}")
+
+        # Find matching adapter
+        adapter = self._find_adapter(url)
+        if adapter is None:
+            raise ExtractionError(f"No adapter available for URL: {url}")
+
+        logger.debug(f"    -> Using adapter: {type(adapter).__name__}")
+
+        # Parse HTML
+        soup = BeautifulSoup(html, "html.parser")
+        logger.debug(f"    -> Parsed HTML ({len(html)} bytes)")
+
+        # Extract tutorial links
+        try:
+            tutorials = adapter.extract_tutorial_links(soup, url)
+            logger.debug(f"    -> Found {len(tutorials)} tutorials")
+            return tutorials
+        except Exception as e:
+            error_context = {
+                "url": url,
+                "adapter": type(adapter).__name__,
+                "error_type": type(e).__name__,
+            }
+            logger.error(f"Tutorial extraction failed: {e} | Context: {error_context}")
+            raise ExtractionError(f"Failed to extract tutorials from {url}: {e}") from e

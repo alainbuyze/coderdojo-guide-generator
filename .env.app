@@ -11,7 +11,7 @@ BROWSER_HEADLESS=true
 BROWSER_TIMEOUT=50000
 
 # Logging
-LOG_LEVEL="DEBUG"
+LOG_LEVEL="INFO"
 LOG_FORMAT="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
 # Image settings

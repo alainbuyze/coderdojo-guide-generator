@@ -8,7 +8,7 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup, Tag
 
 from src.core.config import get_settings
-from src.sources.base import BaseSourceAdapter, ExtractedContent
+from src.sources.base import BaseSourceAdapter, ExtractedContent, TutorialLink
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -216,3 +216,59 @@ class ElecfreaksAdapter(BaseSourceAdapter):
             metadata["description"] = meta_desc["content"]
 
         return metadata
+
+    def extract_tutorial_links(self, soup: BeautifulSoup, url: str) -> list[TutorialLink]:
+        """Extract tutorial links from an Elecfreaks index page.
+
+        Extracts case tutorial links from the navigation sidebar. Links
+        are identified by containing "case" in the URL path.
+
+        Args:
+            soup: Parsed HTML as BeautifulSoup object.
+            url: The source URL for context.
+
+        Returns:
+            List of TutorialLink objects with url and title.
+        """
+        logger.debug(f" * {inspect.currentframe().f_code.co_name} > Extracting tutorial links from: {url}")
+
+        tutorials: list[TutorialLink] = []
+        seen_urls: set[str] = set()
+
+        # Find all links in the page
+        for link in soup.find_all("a", href=True):
+            href = link.get("href", "")
+            text = link.get_text(strip=True)
+
+            # Skip empty links
+            if not href or not text:
+                continue
+
+            # Look for case tutorial links
+            # Pattern: URLs containing "case" in the path
+            if "case" not in href.lower():
+                continue
+
+            # Make URL absolute
+            if href.startswith("/"):
+                href = urljoin(url, href)
+            elif not href.startswith(("http://", "https://")):
+                href = urljoin(url, href)
+
+            # Skip if we've already seen this URL
+            if href in seen_urls:
+                continue
+            seen_urls.add(href)
+
+            # Skip the current page
+            if href.rstrip("/") == url.rstrip("/"):
+                continue
+
+            # Extract and clean up the title
+            title = text.strip()
+
+            tutorials.append(TutorialLink(url=href, title=title))
+            logger.debug(f"    -> Found tutorial: {title}")
+
+        logger.info(f"    -> Found {len(tutorials)} tutorials")
+        return tutorials

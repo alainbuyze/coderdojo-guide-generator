@@ -8,6 +8,19 @@ from bs4 import BeautifulSoup
 
 
 @dataclass
+class TutorialLink:
+    """Container for a tutorial link extracted from an index page.
+
+    Attributes:
+        url: Full URL to the tutorial page.
+        title: Tutorial title/name.
+    """
+
+    url: str
+    title: str
+
+
+@dataclass
 class ExtractedContent:
     """Container for extracted tutorial content.
 
@@ -58,3 +71,19 @@ class BaseSourceAdapter(ABC):
             ExtractedContent with title, sections, images, and metadata.
         """
         pass
+
+    def extract_tutorial_links(self, soup: BeautifulSoup, url: str) -> list[TutorialLink]:
+        """Extract tutorial links from an index page.
+
+        Args:
+            soup: Parsed HTML as BeautifulSoup object.
+            url: The source URL for context.
+
+        Returns:
+            List of TutorialLink objects with url and title.
+
+        Note:
+            Default implementation returns empty list. Subclasses should
+            override this method to provide source-specific extraction.
+        """
+        return []
