@@ -30,9 +30,9 @@ h1 {
 h2 {
     font-size: 18pt;
     font-weight: bold;
-    page-break-before: always;
+    page-break-before: avoid;
     page-break-after: avoid;
-    margin-top: 0;
+    margin-top: 8mm;
     margin-bottom: 8mm;
     color: #2c3e50;
     border-bottom: 2pt solid #3498db;
@@ -43,15 +43,22 @@ h3 {
     font-size: 14pt;
     font-weight: bold;
     page-break-after: avoid;
-    margin-top: 5mm;
-    margin-bottom: 3mm;
+    page-break-inside: avoid;
+    margin-top: 3mm;
+    margin-bottom: 2mm;
     color: #34495e;
 }
 
 /* Paragraphs */
 p {
-    margin-bottom: 3mm;
+    margin-bottom: 2mm;
     text-align: justify;
+    page-break-after: avoid;
+}
+
+/* Paragraph followed by image */
+p + img {
+    margin-top: 2mm;
 }
 
 /* Lists */
@@ -91,9 +98,22 @@ pre code {
 /* Images - default */
 img {
     max-width: 100%;
+    max-height: 200mm;
     height: auto;
     display: block;
     margin: 3mm auto;
+    page-break-inside: avoid;
+}
+
+/* Keep section content together */
+.section-content {
+    page-break-inside: avoid;
+    margin-bottom: 5mm;
+}
+
+.section-content img {
+    margin-top: 2mm;
+    margin-bottom: 2mm;
 }
 
 /* Construction diagrams: 2 per page */

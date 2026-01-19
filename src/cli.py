@@ -162,7 +162,7 @@ from src.makecode_replacer import replace_makecode_screenshots
 from src.scraper import fetch_page, get_browser
 from src.translator import translate_content
 
-# Note: printer module imported lazily in print_guide() to avoid WeasyPrint GTK3 dependency
+# Note: printer module imported lazily in print_guide() and print_all() to avoid WeasyPrint GTK3 dependency
 # when running commands that don't need PDF generation
 
 console = Console()
@@ -233,9 +233,9 @@ async def _generate(
     """
     settings = get_settings()
 
-    # Setup logging
-    log_level = "DEBUG" if verbose else settings.LOG_LEVEL
-    setup_logging(log_level)
+    # Update logging level if verbose flag is used
+    if verbose:
+        setup_logging("DEBUG")
 
     extractor = ContentExtractor()
     output_dir = Path(output)
@@ -554,9 +554,9 @@ async def _batch(
     """
     settings = get_settings()
 
-    # Setup logging
-    log_level = "DEBUG" if verbose else settings.LOG_LEVEL
-    setup_logging(log_level)
+    # Update logging level if verbose flag is used
+    if verbose:
+        setup_logging("DEBUG")
 
     extractor = ContentExtractor()
     output_dir = Path(output)
@@ -815,7 +815,7 @@ def sources() -> None:
         )
     )
 
-@cli.command()
+@cli.command("print")
 @click.option("--input", "-i", required=True, type=click.Path(exists=True, path_type=Path), help="Markdown file to convert to PDF")
 @click.option("--output","-o",type=click.Path(path_type=Path),help="Output PDF path (defaults to same name with .pdf extension)",)
 @click.option("--css",type=click.Path(exists=True, path_type=Path),help="Custom CSS file for styling (optional)",)
@@ -837,11 +837,9 @@ def print_guide(input: Path, output: Path | None, css: Path | None, verbose: boo
     """
     from src.printer import markdown_file_to_pdf
 
-    settings = get_settings()
-
-    # Setup logging
-    log_level = "DEBUG" if verbose else settings.LOG_LEVEL
-    setup_logging(log_level)
+    # Update logging level if verbose flag is used
+    if verbose:
+        setup_logging("DEBUG")
 
     # Use default CSS if not provided
     if css is None:
@@ -872,6 +870,105 @@ def print_guide(input: Path, output: Path | None, css: Path | None, verbose: boo
             f"[bold]Output:[/bold] {pdf_path}",
             title="Success",
             border_style="green",
+        )
+    )
+
+@cli.command("print-all")
+@click.option("--input", "-i", required=True, type=click.Path(exists=True, file_okay=False, path_type=Path), help="Directory containing markdown files to convert")
+@click.option("--output", "-o", type=click.Path(path_type=Path), help="Output directory for PDF files (defaults to same as input directory)")
+@click.option("--css", type=click.Path(exists=True, path_type=Path), help="Custom CSS file for styling (optional)")
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
+def print_all(input: Path, output: Path | None, css: Path | None, verbose: bool) -> None:
+    """Convert all markdown files in a directory to printable PDFs.
+
+    Processes all .md files in the specified directory and converts them to PDF
+    with the same filename but .pdf extension. Each file is processed individually
+    with progress tracking.
+
+    Example usage:
+        uv run python -m src.cli print-all --input ./guides
+        uv run python -m src.cli print-all -i ./guides -o ./pdfs
+        uv run python -m src.cli print-all --input ./guides --css custom.css
+
+    """
+    from src.printer import markdown_file_to_pdf
+
+    # Update logging level if verbose flag is used
+    if verbose:
+        setup_logging("DEBUG")
+
+    # Use default CSS if not provided
+    if css is None:
+        css = Path(__file__).parent.parent / "resources" / "print.css"
+        if not css.exists():
+            css = None  # Fall back to embedded CSS
+
+    # Set output directory
+    if output is None:
+        output = input
+
+    # Find all markdown files
+    md_files = list(input.glob("*.md"))
+
+    if not md_files:
+        console.print(f"[yellow]No markdown files found in {input}[/yellow]")
+        return
+
+    console.print(f"[cyan]Found {len(md_files)} markdown files to convert[/cyan]")
+
+    # Process each file with progress bar
+    success_count = 0
+    error_count = 0
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+        transient=True,
+    ) as progress:
+        task = progress.add_task("Converting files...", total=len(md_files))
+
+        for i, md_file in enumerate(md_files, 1):
+            # Update progress description
+            progress.update(task, description=f"[{i}/{len(md_files)}] {md_file.name}")
+
+            try:
+                # Convert to PDF
+                pdf_path = markdown_file_to_pdf(md_file, None, css)
+
+                # Move to output directory if different
+                if output != input:
+                    target_pdf_path = output / pdf_path.name
+                    pdf_path.rename(target_pdf_path)
+                    pdf_path = target_pdf_path
+
+                success_count += 1
+
+            except Exception as e:
+                error_count += 1
+                if verbose:
+                    console.print(f"[red]Failed to convert {md_file.name}:[/red] {e}")
+
+            progress.advance(task)
+
+    # Summary
+    console.print()
+    summary_parts = [
+        "[green]Batch PDF conversion complete![/green]\n\n",
+        f"[bold]Total files:[/bold] {len(md_files)}\n",
+        f"[bold]Successful:[/bold] {success_count}\n",
+    ]
+
+    if error_count > 0:
+        summary_parts.append(f"[bold]Failed:[/bold] [red]{error_count}[/red]\n")
+
+    summary_parts.append(f"[bold]Output directory:[/bold] {output}")
+
+    console.print(
+        Panel(
+            "".join(summary_parts),
+            title="Batch Summary",
+            border_style="green" if error_count == 0 else "yellow",
         )
     )
 
