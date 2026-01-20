@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     UPSCAYL_SCALE: int = Field(default=4, description="Upscale factor (2 or 4)")
     UPSCAYL_MODEL: str = Field(default="realesrgan-x4plus", description="Upscayl model name")
     ENHANCE_IMAGES: bool = Field(default=True, description="Enable image enhancement")
+    ENHANCE_WORKERS: int = Field(default=2, description="Number of parallel enhancement workers")
 
     # QR Code settings
     QRCODE_SCALE: float = Field(default=1.0, description="Scale factor for QR codes (1.0 = original size)")

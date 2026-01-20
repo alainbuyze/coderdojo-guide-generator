@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "github": {
+      "command": "uvx",
+      "args": ["mcp-server-github"],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+      }
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@anthropic/mcp-server-filesystem", "/path/to/allowed/dir"]
+    },
+    "supabase": {
+      "type": "http",
+      "url": "https://your-project.supabase.co/functions/v1/mcp",
+      "headers": {
+        "Authorization": "Bearer ${SUPABASE_ANON_KEY}"
+      }
+    }
+  }
+}

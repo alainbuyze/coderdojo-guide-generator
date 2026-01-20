@@ -5,19 +5,20 @@ import logging
 import shutil
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 # Handle imports for both module and standalone execution
 try:
     from src.core.config import get_settings
-    from src.sources.base import ExtractedContent
     from src.image_trimmer import trim_image
+    from src.sources.base import ExtractedContent
 except ImportError:
     # Running as standalone script
     sys.path.insert(0, str(Path(__file__).parent.parent))
     from src.core.config import get_settings
-    from src.sources.base import ExtractedContent
     from src.image_trimmer import trim_image
+    from src.sources.base import ExtractedContent
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -168,8 +169,65 @@ def enhance_image(input_path: Path, output_path: Path) -> bool:
         return False
 
 
+def _process_single_image(
+    image: dict, base_dir: Path
+) -> tuple[dict, str | None, bool]:
+    """Process a single image for enhancement.
+
+    Args:
+        image: Image dictionary with local_path.
+        base_dir: Base directory for resolving paths.
+
+    Returns:
+        Tuple of (image dict, enhanced_path or None, success bool).
+    """
+    local_path = image["local_path"]
+    input_path = base_dir / local_path
+
+    if not input_path.exists():
+        logger.warning(f"    -> Local image not found: {input_path}")
+        return image, None, False
+
+    # Skip GIF files (animated images)
+    if input_path.suffix.lower() == '.gif':
+        logger.debug(f"    -> Skipping GIF file: {input_path.name}")
+        return image, None, False
+
+    # Generate enhanced path (add _enhanced before extension)
+    stem = input_path.stem
+    suffix = input_path.suffix
+    enhanced_filename = f"{stem}_enhanced{suffix}"
+    enhanced_path = input_path.parent / enhanced_filename
+
+    # Enhance
+    success = enhance_image(input_path, enhanced_path)
+
+    if success:
+        # Trim the enhanced image to remove whitespace
+        try:
+            trim_image(enhanced_path)
+            logger.debug(f"    -> Trimmed: {enhanced_path.name}")
+        except Exception as e:
+            logger.warning(f"    -> Failed to trim {enhanced_path.name}: {e}")
+
+        # Remove the original image
+        try:
+            input_path.unlink()
+            logger.debug(f"    -> Removed original: {input_path.name}")
+        except Exception as e:
+            logger.warning(f"    -> Failed to remove original {input_path.name}: {e}")
+
+        # Return relative path for markdown
+        relative_enhanced = Path(local_path).parent / enhanced_filename
+        return image, str(relative_enhanced), True
+    else:
+        # Fall back to original - no enhanced_path set
+        logger.debug(f"    -> Keeping original for: {local_path}")
+        return image, None, False
+
+
 def enhance_all_images(content: ExtractedContent, output_dir: Path) -> ExtractedContent:
-    """Enhance all downloaded images in content.
+    """Enhance all downloaded images in content using parallel processing.
 
     Processes images that have local_path set by the downloader.
     Enhanced images are saved with '_enhanced' suffix.
@@ -207,55 +265,31 @@ def enhance_all_images(content: ExtractedContent, output_dir: Path) -> Extracted
         logger.debug("    -> No local images to enhance")
         return content
 
-    logger.debug(f"    -> Found {len(images_to_enhance)} images to enhance")
+    num_workers = settings.ENHANCE_WORKERS
+    logger.debug(f"    -> Found {len(images_to_enhance)} images to enhance (using {num_workers} workers)")
 
     enhanced_count = 0
     # Use parent directory since local_path includes guide subfolder name
     base_dir = output_dir.parent
-    for image in images_to_enhance:
-        local_path = image["local_path"]
-        input_path = base_dir / local_path
 
-        if not input_path.exists():
-            logger.warning(f"    -> Local image not found: {input_path}")
-            continue
+    # Process images in parallel
+    with ThreadPoolExecutor(max_workers=num_workers) as executor:
+        # Submit all enhancement tasks
+        future_to_image = {
+            executor.submit(_process_single_image, image, base_dir): image
+            for image in images_to_enhance
+        }
 
-        # Skip GIF files (animated images)
-        if input_path.suffix.lower() == '.gif':
-            logger.debug(f"    -> Skipping GIF file: {input_path.name}")
-            continue
-
-        # Generate enhanced path (add _enhanced before extension)
-        stem = input_path.stem
-        suffix = input_path.suffix
-        enhanced_filename = f"{stem}_enhanced{suffix}"
-        enhanced_path = input_path.parent / enhanced_filename
-
-        # Enhance
-        success = enhance_image(input_path, enhanced_path)
-
-        if success:
-            # Trim the enhanced image to remove whitespace
+        # Collect results as they complete
+        for future in as_completed(future_to_image):
             try:
-                trim_image(enhanced_path)
-                logger.debug(f"    -> Trimmed: {enhanced_path.name}")
+                image, enhanced_path, success = future.result()
+                if success and enhanced_path:
+                    image["enhanced_path"] = enhanced_path
+                    enhanced_count += 1
             except Exception as e:
-                logger.warning(f"    -> Failed to trim {enhanced_path.name}: {e}")
-
-            # Remove the original image
-            try:
-                input_path.unlink()
-                logger.debug(f"    -> Removed original: {input_path.name}")
-            except Exception as e:
-                logger.warning(f"    -> Failed to remove original {input_path.name}: {e}")
-
-            # Store relative path for markdown
-            relative_enhanced = Path(local_path).parent / enhanced_filename
-            image["enhanced_path"] = str(relative_enhanced)
-            enhanced_count += 1
-        else:
-            # Fall back to original - no enhanced_path set
-            logger.debug(f"    -> Keeping original for: {local_path}")
+                original_image = future_to_image[future]
+                logger.error(f"    -> Enhancement failed for {original_image.get('local_path')}: {e}")
 
     logger.debug(f"    -> Enhanced {enhanced_count}/{len(images_to_enhance)} images")
     return content

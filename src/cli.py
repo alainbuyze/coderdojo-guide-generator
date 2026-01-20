@@ -392,7 +392,9 @@ class BatchState:
             output_dir: Output directory where state file is stored.
         """
         self.output_dir = output_dir
-        self.state_path = output_dir / self.STATE_FILENAME
+        # Always store batch state in the config's output directory, not the user-specified one
+        settings = get_settings()
+        self.state_path = settings.output_path / self.STATE_FILENAME
         self.completed: set[str] = set()
         self.failed: set[str] = set()
         self.index_url: str = ""
@@ -417,7 +419,8 @@ class BatchState:
 
     def save(self) -> None:
         """Save state to file."""
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        # Ensure parent directory of state file exists
+        self.state_path.parent.mkdir(parents=True, exist_ok=True)
         data = {
             "index_url": self.index_url,
             "completed": list(self.completed),
@@ -572,7 +575,9 @@ async def _batch(
 
     # Handle resume
     if resume:
+        print(f"DEBUG: Looking for state file at: {state.state_path}")
         if state.load():
+            print(f"DEBUG: State loaded successfully. Completed: {len(state.completed)}")
             if state.index_url and state.index_url != index:
                 console.print(
                     f"[yellow]Warning:[/yellow] Index URL mismatch. "
@@ -586,6 +591,7 @@ async def _batch(
                     f"{len(state.failed)} failed"
                 )
         else:
+            print("DEBUG: Failed to load state file")
             console.print("[yellow]No previous state found. Starting fresh batch...[/yellow]")
 
     # Fetch index page
