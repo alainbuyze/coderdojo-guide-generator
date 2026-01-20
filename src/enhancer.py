@@ -240,6 +240,7 @@ def enhance_all_images(
     output_dir: Path,
     progress_callback: Callable[[int, int], None] | None = None,
     show_progress: bool = False,
+    progress: Progress | None = None,
 ) -> ExtractedContent:
     """Enhance all downloaded images in content using parallel processing.
 
@@ -251,6 +252,7 @@ def enhance_all_images(
         output_dir: Base output directory.
         progress_callback: Optional callback(completed, total) for progress updates.
         show_progress: Show rich progress bar (used when running standalone).
+        progress: Optional shared Progress instance for nested progress display.
 
     Returns:
         Updated ExtractedContent with enhanced_path set for enhanced images.
@@ -323,17 +325,24 @@ def enhance_all_images(
         return enhanced_count
 
     # Show rich progress bar if requested
-    if show_progress:
+    if progress is not None:
+        # Use shared progress instance (add a separate task for image enhancement)
+        task_id = progress.add_task("  Enhancing images...", total=total_count)
+        enhanced_count = _process_with_progress(progress, task_id)
+        progress.update(task_id, description=f"  Enhanced {enhanced_count}/{total_count} images")
+        progress.remove_task(task_id)
+    elif show_progress:
+        # Create own progress instance when running standalone
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             BarColumn(),
             TaskProgressColumn(),
             console=console,
-        ) as progress:
-            task_id = progress.add_task("Enhancing images...", total=total_count)
-            enhanced_count = _process_with_progress(progress, task_id)
-            progress.update(task_id, description=f"Enhanced {enhanced_count}/{total_count} images")
+        ) as standalone_progress:
+            task_id = standalone_progress.add_task("Enhancing images...", total=total_count)
+            enhanced_count = _process_with_progress(standalone_progress, task_id)
+            standalone_progress.update(task_id, description=f"Enhanced {enhanced_count}/{total_count} images")
     else:
         _process_with_progress(None, None)
 

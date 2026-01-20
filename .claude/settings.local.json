@@ -73,7 +73,8 @@
       "Bash(cmd /c \"type c:\\\\Users\\\\alain\\\\CascadeProjects\\\\Coderdojo\\\\.env.app\")",
       "Bash(powershell -Command \"Get-Content ''c:\\\\Users\\\\alain\\\\CascadeProjects\\\\Coderdojo\\\\.env.app''\")",
       "Bash(powershell -Command \"Get-ChildItem ''d:\\\\Coderdojo\\\\docs\\\\*.md'' | Select-Object -First 5 Name\")",
-      "Bash(powershell -Command:*)"
+      "Bash(powershell -Command:*)",
+      "mcp__MCP_DOCKER__issue_write"
     ]
   }
 }

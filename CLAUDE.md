@@ -233,6 +233,22 @@ def enhance_image(input_path: Path, output_path: Path) -> bool:
         return False
 ```
 
+# Environment Instructions
+
+This is a Windows environment using PowerShell/CMD, NOT bash.
+
+## Shell Commands
+- Use PowerShell commands, not bash/Unix commands
+- Use `Get-Content` instead of `cat`
+- Use `type` (CMD) or `Get-Content` (PowerShell) for reading files
+- Use Windows paths with backslashes: `C:\Users\alain\...`
+- Do NOT use Unix paths like `/c/Users/...`
+
+## File Operations
+- Reading files: `Get-Content "C:\path\to\file"`
+- Listing directories: `Get-ChildItem` or `dir`
+- Current directory: `Get-Location` or `pwd`
+
 ## Development Workflow
 
 1. Use `/project:core_piv_loop:prime` to load project context

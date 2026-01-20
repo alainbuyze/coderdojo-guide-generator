@@ -471,6 +471,7 @@ async def _generate_single(
     no_translate: bool,
     no_qrcode: bool,
     no_makecode: bool,
+    progress: "Progress | None" = None,
 ) -> tuple[bool, str]:
     """Generate a single guide without console output (for batch processing).
 
@@ -482,6 +483,7 @@ async def _generate_single(
         no_translate: Skip Dutch translation.
         no_qrcode: Skip QR code generation.
         no_makecode: Skip MakeCode replacement.
+        progress: Optional shared Progress instance for nested progress display.
 
     Returns:
         Tuple of (success, error_message).
@@ -518,7 +520,7 @@ async def _generate_single(
         # Enhance images (optional)
         if not no_enhance and any(img.get("local_path") for img in content.images):
             try:
-                content = enhance_all_images(content, guide_subdir, show_progress=True)
+                content = enhance_all_images(content, guide_subdir, progress=progress)
             except Exception:
                 pass  # Continue without enhancement
 
@@ -690,6 +692,7 @@ async def _batch(
                 no_translate,
                 no_qrcode,
                 no_makecode,
+                progress=progress,
             )
 
             if success:
