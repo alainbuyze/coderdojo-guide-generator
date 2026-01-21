@@ -7,11 +7,17 @@ that works reliably on Windows without external dependencies.
 import inspect
 import logging
 import re
+import sys
 from io import BytesIO
 from pathlib import Path
 
 from markdown import markdown
 from xhtml2pdf import pisa
+
+# Add project root to path for imports when running as script
+if __name__ == "__main__":
+    project_root = Path(__file__).parent.parent
+    sys.path.insert(0, str(project_root))
 
 from src.core.config import get_settings
 from src.core.errors import GenerationError
@@ -590,3 +596,18 @@ def markdown_file_to_pdf(
         }
         logger.error(f"Markdown file conversion failed: {e} | Context: {error_context}")
         raise GenerationError(f"Failed to convert markdown file: {e}") from e
+
+
+if __name__ == "__main__":
+    """Main function to print a specific markdown file to PDF."""
+
+    # Hardcoded input file path
+    input_file = Path(r"D:\Coderdojo\Projects\nezha-inventor-s-kit-for-microbit-case-61.md")
+
+    try:
+        print(f"Converting {input_file} to PDF...")
+        output_path = markdown_file_to_pdf(input_file)
+        print(f"Successfully generated PDF: {output_path}")
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)

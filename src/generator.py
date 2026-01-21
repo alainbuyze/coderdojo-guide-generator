@@ -146,9 +146,112 @@ def build_image_map(content: ExtractedContent) -> dict[str, str]:
     return image_map
 
 
+def generate_table_of_contents(markdown: str) -> str:
+    """Generate a table of contents from all header 2 entries in the markdown.
+
+    Args:
+        markdown: The markdown content to process.
+
+    Returns:
+        Markdown content with table of contents added after the title.
+    """
+    # Find all header 2 entries
+    headers = re.findall(r'^## (.+)$', markdown, flags=re.MULTILINE)
+
+    if not headers:
+        return markdown
+
+    # Generate table of contents
+    toc_lines = ["## Inhoudsopgave\n"]
+    for header in headers:
+        # Create anchor link by converting to lowercase and replacing spaces with hyphens
+        anchor = header.lower().replace(' ', '-').replace('/', '').replace('(', '').replace(')', '')
+        toc_lines.append(f"- [{header}](#{anchor})")
+
+    toc = "\n".join(toc_lines) + "\n\n"
+
+    # Insert table of contents after the main title (first # header)
+    title_pattern = r'^(# .+)$'
+    if re.search(title_pattern, markdown, flags=re.MULTILINE):
+        markdown = re.sub(title_pattern, r'\1\n\n' + toc, markdown, count=1, flags=re.MULTILINE)
+
+    return markdown
+
+
+def post_process_markdown(markdown: str) -> str:
+    """Apply post-processing fixes to the generated markdown.
+
+    Args:
+        markdown: The markdown content to process.
+
+    Returns:
+        The processed markdown content.
+    """
+    # Remove any non-displayable characters (control characters except common whitespace)
+    # Keep: \t (tab), \n (newline), \r (carriage return)
+    # Remove: other control characters (0x00-0x1F, 0x7F-0x9F) except the ones above
+    markdown = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]', '', markdown)
+
+    # Remove paragraph containing "Invoering" just after header 1
+    # Pattern: # Header\n\n> Invoering\n\n or # Header\n\nInvoering\n\n
+    markdown = re.sub(r'(^# .+\n\n)>? ?Invoering\n\n', r'\1', markdown, flags=re.MULTILINE)
+
+    # Change title "Stap 1" to "Programmering"
+    markdown = re.sub(r'^# Stap 1', '# Programmering', markdown, flags=re.MULTILINE)
+
+    # Change specific hyperlink from elecfreaks.com to shop.elecfreaks.com
+    old_url = "https://www.elecfreaks.com/nezha-inventor-s-kit-for-micro-bit-without-micro-bit-board.html"
+    new_url = "https://shop.elecfreaks.com/products/elecfreaks-micro-bit-nezha-48-in-1-inventors-kit-without-micro-bit-board"
+    markdown = markdown.replace(old_url, new_url)
+
+    # Convert specific header 3 headers to header 2
+    headers_to_convert = [
+        'Programmering',
+        'Benodigde materialen',
+        'Montage stappen',
+        'Aansluitschema',
+        'Resultaat'
+    ]
+
+    for header in headers_to_convert:
+        # Replace ### Header with ## Header, being more flexible with invisible characters
+        replacement = f'## {header}'
+        # First, clean the specific line from invisible characters, then apply the pattern
+        lines = markdown.split('\n')
+        for i, line in enumerate(lines):
+            if re.match(rf'^### {re.escape(header)}', line):
+                # Clean the line from any remaining invisible characters
+                clean_line = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]', '', line)
+                clean_line = re.sub(r'[\u200B-\u200D\uFEFF]', '', clean_line)  # Zero-width characters
+                if re.match(rf'^### {re.escape(header)}\s*$', clean_line):
+                    lines[i] = replacement
+        markdown = '\n'.join(lines)
+
+    # Scale down non-QR code images that appear after specific instruction text
+    lines = markdown.split('\n')
+    for i, line in enumerate(lines):
+        # Check for instruction text followed by image on next line
+        if 'Klik op "Geavanceerd" in de MakeCode-lade om meer keuzes te zien.' in line:
+            # Check if next line contains an image (not QR code)
+            if i + 1 < len(lines):
+                next_line = lines[i + 1]
+                # Match image pattern that doesn't have qrcode class
+                img_match = re.match(r'^!\[\]\(([^)]+)\)$', next_line.strip())
+                if img_match and 'qrcode' not in next_line.lower():
+                    # Add scaling to make image smaller (similar to QR code size)
+                    scaled_img = f'![]({img_match.group(1)}|150)'
+                    lines[i + 1] = scaled_img
+    markdown = '\n'.join(lines)
+
+    # Add table of contents with all header 2 entries
+    markdown = generate_table_of_contents(markdown)
+
+    return markdown
+
+
 def generate_guide(
     content: ExtractedContent, output_dir: Path | None = None, add_qrcodes: bool = True
-) -> str:
+    ) -> str:
     """Generate a Markdown guide from extracted content.
 
     Uses local image paths if available (from downloader/enhancer).
@@ -215,6 +318,9 @@ def generate_guide(
         guide = re.sub(r"\n{3,}", "\n\n", guide)
 
         logger.debug(f"    -> Generated {len(guide)} bytes of Markdown")
+
+        # Apply post-processing fixes
+        guide = post_process_markdown(guide)
 
         # Add QR codes for hyperlinks if requested
         if add_qrcodes and output_dir:
