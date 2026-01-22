@@ -161,6 +161,9 @@ def generate_catalog(
 
     logger.info(f"Found {len(md_files)} markdown files")
 
+    # Sort files alphabetically by name
+    md_files.sort(key=lambda f: f.name.lower())
+
     # Parse each guide
     summaries: list[ProjectSummary] = []
     for md_file in md_files:

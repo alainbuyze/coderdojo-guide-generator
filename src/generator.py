@@ -155,26 +155,30 @@ def generate_table_of_contents(markdown: str) -> str:
     Returns:
         Markdown content with table of contents added after the title.
     """
-    # Find all header 2 entries
-    headers = re.findall(r'^## (.+)$', markdown, flags=re.MULTILINE)
-
+    # Clean markdown from invisible characters first to ensure consistency
+    cleaned_markdown = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]', '', markdown)
+    cleaned_markdown = re.sub(r'[\u200B-\u200D\uFEFF]', '', cleaned_markdown)
+    
+    # Find all header 2 entries from cleaned markdown
+    headers = re.findall(r'^## (.+)$', cleaned_markdown, flags=re.MULTILINE)
+    
     if not headers:
         return markdown
-
+    
     # Generate table of contents
     toc_lines = ["## Inhoudsopgave\n"]
     for header in headers:
         # Create anchor link by converting to lowercase and replacing spaces with hyphens
         anchor = header.lower().replace(' ', '-').replace('/', '').replace('(', '').replace(')', '')
         toc_lines.append(f"- [{header}](#{anchor})")
-
+    
     toc = "\n".join(toc_lines) + "\n\n"
-
+    
     # Insert table of contents after the main title (first # header)
     title_pattern = r'^(# .+)$'
     if re.search(title_pattern, markdown, flags=re.MULTILINE):
         markdown = re.sub(title_pattern, r'\1\n\n' + toc, markdown, count=1, flags=re.MULTILINE)
-
+    
     return markdown
 
 
@@ -226,6 +230,18 @@ def post_process_markdown(markdown: str) -> str:
                 if re.match(rf'^### {re.escape(header)}\s*$', clean_line):
                     lines[i] = replacement
         markdown = '\n'.join(lines)
+
+    # Fix title translations that weren't handled during translation
+    title_fixes = {
+        "Geval": "Project",
+        "Casus": "Project",
+        "Case": "Project"
+    }
+    for old_word, new_word in title_fixes.items():
+        # Fix in main title (first # header) - more flexible pattern
+        markdown = re.sub(rf'^# {old_word} (\d+):', rf'# {new_word} \1:', markdown, flags=re.MULTILINE)
+        # Also handle cases where there might be additional text after the case number
+        markdown = re.sub(rf'^# {old_word} (\d+): (.+)$', rf'# {new_word} \1: \2', markdown, flags=re.MULTILINE)
 
     # Scale down non-QR code images that appear after specific instruction text
     lines = markdown.split('\n')
