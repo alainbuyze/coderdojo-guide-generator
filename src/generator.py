@@ -158,27 +158,27 @@ def generate_table_of_contents(markdown: str) -> str:
     # Clean markdown from invisible characters first to ensure consistency
     cleaned_markdown = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]', '', markdown)
     cleaned_markdown = re.sub(r'[\u200B-\u200D\uFEFF]', '', cleaned_markdown)
-    
+
     # Find all header 2 entries from cleaned markdown
     headers = re.findall(r'^## (.+)$', cleaned_markdown, flags=re.MULTILINE)
-    
+
     if not headers:
         return markdown
-    
+
     # Generate table of contents
     toc_lines = ["## Inhoudsopgave\n"]
     for header in headers:
         # Create anchor link by converting to lowercase and replacing spaces with hyphens
         anchor = header.lower().replace(' ', '-').replace('/', '').replace('(', '').replace(')', '')
         toc_lines.append(f"- [{header}](#{anchor})")
-    
+
     toc = "\n".join(toc_lines) + "\n\n"
-    
+
     # Insert table of contents after the main title (first # header)
     title_pattern = r'^(# .+)$'
     if re.search(title_pattern, markdown, flags=re.MULTILINE):
         markdown = re.sub(title_pattern, r'\1\n\n' + toc, markdown, count=1, flags=re.MULTILINE)
-    
+
     return markdown
 
 
@@ -255,13 +255,18 @@ def post_process_markdown(markdown: str) -> str:
             # Check if next line contains an image (not QR code)
             if i + 1 < len(lines):
                 next_line = lines[i + 1]
-                # Match image pattern that doesn't have qrcode class
-                img_match = re.match(r'^!\[\]\(([^)]+)\)$', next_line.strip())
+                # More flexible image pattern - allow whitespace around the markdown image
+                img_match = re.match(r'^\s*!\[\]\(([^)]+)\)\s*$', next_line.strip())
                 if img_match and 'qrcode' not in next_line.lower():
                     # Add scaling to make image 50% smaller using HTML img tag format
                     img_path = img_match.group(1)
                     scaled_img = f'<img src="{img_path}" width="75" height="75">'
                     lines[i + 1] = scaled_img
+                else:
+                    # Debug: print why it didn't match
+                    print(f"DEBUG: Line {i+1}: {repr(next_line)}")
+                    print(f"DEBUG: img_match: {img_match}")
+                    print(f"DEBUG: contains qrcode: {'qrcode' in next_line.lower()}")
     markdown = '\n'.join(lines)
 
     # Add table of contents with all header 2 entries
