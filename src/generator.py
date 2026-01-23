@@ -247,26 +247,29 @@ def post_process_markdown(markdown: str) -> str:
         # Also handle cases where there might be additional text after the case number
         markdown = re.sub(rf'^# {old_word} (\d+): (.+)$', rf'# {new_word} \1: \2', markdown, flags=re.MULTILINE)
 
-    # Scale down non-QR code images that appear after specific instruction text
+    # Scale down the first non-QR code image after "## Programmering" header
     lines = markdown.split('\n')
+    in_programming_section = False
     for i, line in enumerate(lines):
-        # Check for instruction text followed by image on next line
-        if 'Klik op "Geavanceerd" in de MakeCode-lade om meer keuzes te zien.' in line:
-            # Check if next line contains an image (not QR code)
-            if i + 1 < len(lines):
-                next_line = lines[i + 1]
-                # More flexible image pattern - allow whitespace around the markdown image
-                img_match = re.match(r'^\s*!\[\]\(([^)]+)\)\s*$', next_line.strip())
-                if img_match and 'qrcode' not in next_line.lower():
-                    # Add scaling to make image 50% smaller using HTML img tag format
-                    img_path = img_match.group(1)
-                    scaled_img = f'<img src="{img_path}" width="75" height="75">'
-                    lines[i + 1] = scaled_img
-                else:
-                    # Debug: print why it didn't match
-                    print(f"DEBUG: Line {i+1}: {repr(next_line)}")
-                    print(f"DEBUG: img_match: {img_match}")
-                    print(f"DEBUG: contains qrcode: {'qrcode' in next_line.lower()}")
+        # Look for the Programmering section header
+        if line.strip() == '## Programmering':
+            in_programming_section = True
+            continue
+
+        # Once in programming section, find the first image (not QR code) and scale it
+        if in_programming_section:
+            # Check if this line contains a markdown image
+            img_match = re.match(r'^\s*!\[\]\(([^)]+)\)\s*$', line.strip())
+            if img_match and 'qrcode' not in line.lower():
+                # Add scaling to make image 50% smaller using CSS style
+                img_path = img_match.group(1)
+                scaled_img = f'<img src="{img_path}" style="width: 50%; height: auto;">'
+                lines[i] = scaled_img
+                # Only scale the first image after the header
+                break
+            # Stop if we hit another section header
+            elif line.startswith('## '):
+                break
     markdown = '\n'.join(lines)
 
     # Add table of contents with all header 2 entries
