@@ -177,6 +177,27 @@ def enhance_markdown_for_print(md_content: str) -> str:
     return "\n".join(lines)
 
 
+def strip_percentage_styles(md_content: str) -> str:
+    """Remove percentage-based inline styles from img tags.
+
+    xhtml2pdf doesn't support percentage values for width/height.
+    This strips inline styles containing percentages from img tags.
+
+    Args:
+        md_content: Markdown/HTML content.
+
+    Returns:
+        Content with percentage styles removed from img tags.
+    """
+    # Pattern matches style attributes containing percentage values
+    # e.g., style="width: 50%; height: auto;"
+    return re.sub(
+        r'(<img[^>]*)\s+style="[^"]*%[^"]*"([^>]*>)',
+        r'\1\2',
+        md_content
+    )
+
+
 def markdown_to_html(md_content: str, css_path: Path | None = None) -> str:
     """Convert markdown to HTML with print-optimized structure.
 
@@ -187,6 +208,9 @@ def markdown_to_html(md_content: str, css_path: Path | None = None) -> str:
     Returns:
         Complete HTML document ready for PDF conversion.
     """
+    # Strip percentage-based styles (xhtml2pdf doesn't support them)
+    md_content = strip_percentage_styles(md_content)
+
     # Enhance markdown with print classes
     enhanced_md = enhance_markdown_for_print(md_content)
 
@@ -231,198 +255,24 @@ def markdown_to_html(md_content: str, css_path: Path | None = None) -> str:
 def get_default_css() -> str:
     """Get default CSS for print layout.
 
+    Loads CSS from resources/print.css file.
+
     Returns:
         CSS string with A4 portrait layout rules.
         Note: xhtml2pdf supports a subset of CSS 2.1
     """
+    # Get path to resources/print.css relative to this module
+    css_path = Path(__file__).parent.parent / "resources" / "print.css"
+
+    if css_path.exists():
+        return css_path.read_text(encoding="utf-8")
+
+    # Fallback minimal CSS if file not found
+    logger.warning(f"Default CSS file not found: {css_path}")
     return """
-/* A4 Portrait page setup - xhtml2pdf syntax */
-@page {
-    size: A4 portrait;
-    margin: 15mm 20mm;
-}
-
-/* General typography */
-body {
-    font-family: Helvetica, Arial, sans-serif;
-    font-size: 11pt;
-    line-height: 1.4;
-    color: #333333;
-}
-
-/* Title */
-h1 {
-    font-size: 28pt;
-    font-weight: bold;
-    text-align: center;
-    margin-top: 10mm;
-    margin-bottom: 8mm;
-    color: #2c3e50;
-}
-
-/* Section headers */
-h2 {
-    font-size: 18pt;
-    font-weight: bold;
-    page-break-after: avoid;
-    margin-top: 5mm;
-    margin-bottom: 8mm;
-    color: #2c3e50;
-    border-bottom: 2pt solid #3498db;
-    padding-bottom: 2mm;
-}
-
-h3 {
-    font-size: 14pt;
-    font-weight: bold;
-    page-break-after: avoid;
-    margin-top: 5mm;
-    margin-bottom: 3mm;
-    color: #34495e;
-}
-
-/* Paragraphs */
-p {
-    margin-bottom: 3mm;
-    text-align: justify;
-}
-
-/* Lists */
-ul, ol {
-    margin-bottom: 3mm;
-    padding-left: 8mm;
-}
-
-li {
-    margin-bottom: 2mm;
-}
-
-/* Code blocks */
-pre {
-    background-color: #f5f5f5;
-    border: 1pt solid #dddddd;
-    border-left: 3pt solid #3498db;
-    padding: 3mm;
-    font-family: Courier, monospace;
-    font-size: 9pt;
-    page-break-inside: avoid;
-    margin: 3mm 0;
-}
-
-code {
-    font-family: Courier, monospace;
-    font-size: 10pt;
-    background-color: #f5f5f5;
-    padding: 1mm 2mm;
-}
-
-pre code {
-    background-color: transparent;
-    padding: 0;
-}
-
-/* Images - default */
-img {
-    max-width: 100%;
-    height: auto;
-    display: block;
-    margin: 3mm auto;
-}
-
-/* QR codes - inline display, square aspect ratio */
-img.qrcode {
-    display: inline;
-    margin: 0 2mm;
-    vertical-align: middle;
-}
-
-/* Construction diagrams */
-.construction-step {
-    width: 100%;
-    page-break-inside: avoid;
-    margin-bottom: 8mm;
-    border: 1pt solid #ecf0f1;
-    padding: 3mm;
-    background-color: #fafafa;
-}
-
-.construction-step img {
-    max-width: 100%;
-    max-height: 110mm;
-    display: block;
-    margin: 0 auto;
-}
-
-/* Connection diagrams: full page */
-.connection-diagram {
-    page-break-before: always;
-    page-break-after: always;
-    page-break-inside: avoid;
-    text-align: center;
-}
-
-.connection-diagram img {
-    max-width: 100%;
-    max-height: 250mm;
-    display: block;
-    margin: 0 auto;
-}
-
-/* Code screenshots */
-.code-image {
-    page-break-inside: avoid;
-    margin: 5mm 0;
-    text-align: center;
-}
-
-.code-image img {
-    max-width: 100%;
-    max-height: 180mm;
-    display: block;
-    margin: 0 auto;
-    border: 1pt solid #dddddd;
-}
-
-/* Tables */
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 3mm 0;
-    page-break-inside: avoid;
-    font-size: 10pt;
-}
-
-th, td {
-    border: 1pt solid #dddddd;
-    padding: 2mm;
-    text-align: left;
-}
-
-th {
-    background-color: #3498db;
-    color: white;
-    font-weight: bold;
-}
-
-/* Blockquotes */
-blockquote {
-    border-left: 3pt solid #3498db;
-    padding-left: 5mm;
-    margin: 3mm 0;
-    color: #555555;
-    font-style: italic;
-}
-
-/* Links */
-a {
-    color: #3498db;
-    text-decoration: none;
-}
-
-/* Prevent page breaks in bad places */
-h1, h2, h3, h4, h5, h6 {
-    page-break-after: avoid;
-}
+@page { size: A4 portrait; margin: 15mm 20mm; }
+body { font-family: Helvetica, Arial, sans-serif; font-size: 11pt; }
+img { max-width: 180mm; display: block; margin: 3mm auto; }
 """
 
 
@@ -435,6 +285,7 @@ def create_link_callback(base_path: Path):
     Returns:
         Callback function for xhtml2pdf.
     """
+
     def link_callback(uri: str, rel: str) -> str:
         """Callback for xhtml2pdf to resolve resource URIs.
 
@@ -443,18 +294,21 @@ def create_link_callback(base_path: Path):
             rel: Relative path (unused)
 
         Returns:
-            Resolved path to the resource.
+            Resolved absolute file path for the resource.
         """
-        # Handle file:// URIs
+        # Handle file:// URIs - convert back to path
+        if uri.startswith("file:///"):
+            # file:///D:/path -> D:/path
+            return uri[8:]
         if uri.startswith("file://"):
-            # Convert file:// URI to local path
-            if uri.startswith("file:///"):
-                # Windows absolute path: file:///C:/path
-                return uri[8:]  # Remove 'file:///'
-            return uri[7:]  # Remove 'file://'
+            # file://path -> path
+            return uri[7:]
 
         # Handle absolute paths
-        if Path(uri).is_absolute():
+        path = Path(uri)
+        if path.is_absolute():
+            if path.exists():
+                return str(path)
             return uri
 
         # Resolve relative paths against base_path

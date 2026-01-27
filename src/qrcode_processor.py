@@ -221,9 +221,9 @@ def process_markdown_links(markdown: str, output_dir: Path) -> tuple[str, list[Q
         if settings.QRCODE_SCALE != 1.0:
             # Calculate new size
             new_size = int(100 * settings.QRCODE_SCALE)  # Base size is 100px
-            qr_markdown = f' <img src="{qr_relative_path}" width="{new_size}" height="{new_size}" class="qrcode">'
+            qr_markdown = f' <img src="{qr_relative_path}" style="width: {new_size}px; height: {new_size}px;" class="qrcode">'
         else:
-            qr_markdown = f' <img src="{qr_relative_path}" width="50" height="50" class="qrcode">'
+            qr_markdown = f' <img src="{qr_relative_path}" style="width: 50px; height: 50px;" class="qrcode">'
 
         # Calculate insertion position (after the link ends)
         insert_pos = match.end() + offset

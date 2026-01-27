@@ -18,6 +18,7 @@ from src.core.config import get_settings
 from src.image_trimmer import trim_image
 
 settings = get_settings()
+# settings.LOG_LEVEL="DEBUG"
 logger = logging.getLogger(__name__)
 
 
@@ -212,7 +213,7 @@ if __name__ == "__main__":
     async def test_capture():
         """Test the MakeCode screenshot capture functionality."""
         # Default test URL - a simple MakeCode project
-        test_url = "https://makecode.microbit.org/99662-62928-32447-74027"  # Example URL
+        test_url = "https://makecode.microbit.org/85868-10028-79318-50100"  # Example URL
 
         # Default output directory
         output_dir = Path("D:/Coderdojo/test_output")

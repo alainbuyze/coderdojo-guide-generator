@@ -6,7 +6,7 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from src.cli import BatchState, cli, get_output_filename, slugify
+from src.cli import BatchState, cli, extract_case_number, get_output_filename, get_project_filename, rename_guide_directory, slugify
 
 
 def test_slugify_basic():
@@ -175,3 +175,87 @@ class TestBatchState:
             state = BatchState(output_dir)
 
             assert not state.load()
+
+
+def test_extract_case_number_underscore():
+    """Test extracting case number from URL with underscore."""
+    url = "https://wiki.elecfreaks.com/en/microbit/building-blocks/nezha-inventors-kit/Nezha_Inventor_s_kit_for_microbit_case_01"
+    assert extract_case_number(url) == "01"
+
+
+def test_extract_case_number_hyphen():
+    """Test extracting case number from URL with hyphen."""
+    url = "https://wiki.elecfreaks.com/en/microbit/building-blocks/nezha-inventors-kit/case-12"
+    assert extract_case_number(url) == "12"
+
+
+def test_extract_case_number_no_separator():
+    """Test extracting case number from URL without separator."""
+    url = "https://wiki.elecfreaks.com/en/microbit/building-blocks/nezha-inventors-kit/case05"
+    assert extract_case_number(url) == "05"
+
+
+def test_extract_case_number_not_found():
+    """Test extract_case_number returns None when no case found."""
+    url = "https://example.com/some-tutorial"
+    assert extract_case_number(url) is None
+
+
+def test_get_project_filename_basic():
+    """Test basic project filename generation."""
+    result = get_project_filename("01", "The Mechanical Shrimp")
+    assert result == "Project 01 - The Mechanical Shrimp"
+
+
+def test_get_project_filename_accents():
+    """Test project filename strips accents."""
+    result = get_project_filename("12", "Café au lait")
+    assert result == "Project 12 - Cafe au lait"
+
+
+def test_get_project_filename_special_chars():
+    """Test project filename removes special characters."""
+    result = get_project_filename("05", "Test: Special! Chars?")
+    assert result == "Project 05 - Test Special Chars"
+
+
+def test_get_project_filename_truncation():
+    """Test project filename truncates long titles."""
+    long_title = "A" * 100
+    result = get_project_filename("01", long_title)
+    # Should be "Project 01 - " (13 chars) + max 50 chars
+    assert len(result) <= 63
+    assert result.startswith("Project 01 - ")
+
+
+def test_rename_guide_directory_updates_paths():
+    """Test rename_guide_directory updates markdown paths."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        output_dir = Path(tmpdir)
+        old_dir = output_dir / "old-name"
+        old_dir.mkdir()
+
+        markdown = "![image](old-name/images/test.png)\n![qr](old-name/qrcodes/link.png)"
+        new_dir, updated_md = rename_guide_directory(old_dir, "new-name", output_dir, markdown)
+
+        assert new_dir == output_dir / "new-name"
+        assert "new-name/images/test.png" in updated_md
+        assert "new-name/qrcodes/link.png" in updated_md
+        assert "old-name/" not in updated_md
+        assert new_dir.exists()
+        assert not old_dir.exists()
+
+
+def test_rename_guide_directory_same_name():
+    """Test rename_guide_directory handles same name gracefully."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        output_dir = Path(tmpdir)
+        old_dir = output_dir / "same-name"
+        old_dir.mkdir()
+
+        markdown = "![image](same-name/images/test.png)"
+        new_dir, updated_md = rename_guide_directory(old_dir, "same-name", output_dir, markdown)
+
+        assert new_dir == output_dir / "same-name"
+        assert updated_md == markdown
+        assert old_dir.exists()

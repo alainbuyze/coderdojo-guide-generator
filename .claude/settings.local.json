@@ -1,4 +1,8 @@
 {
+  "env": {
+    "SHELL": "powershell"
+  },
+
   "permissions": {
     "allow": [
       "WebFetch(domain:wiki.elecfreaks.com)",
@@ -75,7 +79,8 @@
       "Bash(powershell -Command \"Get-ChildItem ''d:\\\\Coderdojo\\\\docs\\\\*.md'' | Select-Object -First 5 Name\")",
       "Bash(powershell -Command:*)",
       "mcp__MCP_DOCKER__issue_write",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "mcp__ide__executeCode"
     ]
   }
 }

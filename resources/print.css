@@ -5,7 +5,12 @@
 /* A4 Portrait page setup */
 @page {
     size: A4 portrait;
-    margin: 15mm 20mm;
+    margin: 15mm 15mm;
+}
+
+/* Override xhtml2pdf default line-height to prevent 150% warning */
+* {
+    line-height: 1.4;
 }
 
 /* General typography */
@@ -96,10 +101,10 @@ pre code {
 }
 
 /* Images - default */
+/* Note: xhtml2pdf doesn't support percentage values, use absolute units */
 img {
-    max-width: 100%;
+    max-width: 180mm;
     max-height: 200mm;
-    height: auto;
     display: block;
     margin: 3mm auto;
     page-break-inside: avoid;
@@ -118,16 +123,16 @@ img {
 
 /* Construction diagrams: 2 per page */
 .construction-step {
-    width: 100%;
+    width: 180mm;
     page-break-inside: avoid;
-    margin-bottom: 8mm;
+    margin-bottom: 4mm;
     border: 1pt solid #ecf0f1;
     padding: 3mm;
     background-color: #fafafa;
 }
 
 .construction-step img {
-    max-width: 100%;
+    max-width: 174mm;
     max-height: 110mm;
     display: block;
     margin: 0 auto;
@@ -142,7 +147,7 @@ img {
 }
 
 .connection-diagram img {
-    max-width: 100%;
+    max-width: 180mm;
     max-height: 250mm;
     display: block;
     margin: 0 auto;
@@ -156,11 +161,17 @@ img {
 }
 
 .code-image img {
-    max-width: 100%;
+    max-width: 180mm;
     max-height: 180mm;
     display: block;
     margin: 0 auto;
     border: 1pt solid #dddddd;
+}
+
+/* Scaled images (50% width) for programming section */
+.img-half {
+    max-height: 85mm;
+    width: auto;
 }
 
 /* QR codes - use class instead of attribute selector */
@@ -174,7 +185,7 @@ img {
 
 /* Tables */
 table {
-    width: 100%;
+    width: 180mm;
     border-collapse: collapse;
     margin: 3mm 0;
     page-break-inside: avoid;

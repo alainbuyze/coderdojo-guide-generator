@@ -17,26 +17,56 @@ settings = get_settings()
 logger = logging.getLogger(__name__)
 
 
+def heading_to_class(heading: str) -> str:
+    """Convert a section heading to a valid CSS class name.
+
+    Args:
+        heading: The section heading text.
+
+    Returns:
+        A valid CSS class name prefixed with 'section-'.
+    """
+    if not heading:
+        return "section-content"
+    # Lowercase, replace spaces with hyphens, remove special chars
+    class_name = heading.lower()
+    class_name = re.sub(r"[^a-z0-9\s-]", "", class_name)
+    class_name = re.sub(r"\s+", "-", class_name)
+    class_name = re.sub(r"-+", "-", class_name)
+    return f"section-{class_name.strip('-')}"
+
+
 class GuideMarkdownConverter(MarkdownConverter):
     """Custom Markdown converter that preserves image URLs.
 
     Can optionally use local image paths from an image map.
+    Outputs HTML img tags with section-based CSS classes.
     """
 
-    def __init__(self, image_map: dict[str, str] | None = None, **kwargs):
+    def __init__(
+        self,
+        image_map: dict[str, str] | None = None,
+        section_class: str | None = None,
+        **kwargs,
+    ):
         """Initialize converter with optional image mapping.
 
         Args:
             image_map: Dict mapping remote URLs to local paths.
+            section_class: CSS class name for images in this section.
             **kwargs: Arguments passed to parent MarkdownConverter.
         """
         super().__init__(**kwargs)
         self.image_map = image_map or {}
+        self.section_class = section_class or "section-content"
 
     def convert_img(
         self, el: Tag, text: str = "", convert_as_inline: bool = False, **kwargs
     ) -> str:
-        """Convert img tag to markdown, using local path if available.
+        """Convert img tag to HTML img element with section class.
+
+        Outputs HTML <img> tags with CSS class based on the section,
+        allowing targeted styling in CSS/PDF generation.
 
         Args:
             el: The img element.
@@ -53,50 +83,57 @@ class GuideMarkdownConverter(MarkdownConverter):
         if local_path:
             src = local_path
 
-        # Apply image scaling if not 1.0
+        # Calculate dimensions with scaling
+        width_attr = ""
+        height_attr = ""
         scale = settings.IMAGE_SCALE
-        if scale != 1.0:
-            # Calculate new dimensions if width/height attributes exist
-            width = el.get("width")
-            height = el.get("height")
 
-            if width:
-                try:
-                    new_width = int(float(width) * scale)
-                    src = f"{src}|{new_width}"
-                except (ValueError, TypeError):
-                    pass
+        width = el.get("width")
+        height = el.get("height")
 
-            if height:
-                try:
-                    new_height = int(float(height) * scale)
-                    if "|" in src:
-                        src = f"{src}x{new_height}"
-                    else:
-                        src = f"{src}|x{new_height}"
-                except (ValueError, TypeError):
-                    pass
+        if width:
+            try:
+                new_width = int(float(width) * scale) if scale != 1.0 else int(float(width))
+                width_attr = f' width="{new_width}"'
+            except (ValueError, TypeError):
+                pass
 
-        if title:
-            return f'![{alt}]({src} "{title}")'
-        return f"![{alt}]({src})"
+        if height:
+            try:
+                new_height = int(float(height) * scale) if scale != 1.0 else int(float(height))
+                height_attr = f' height="{new_height}"'
+            except (ValueError, TypeError):
+                pass
+
+        # Build HTML img tag with section class
+        alt_attr = f' alt="{alt}"' if alt else ' alt=""'
+        title_attr = f' title="{title}"' if title else ""
+        class_attr = f' class="{self.section_class}"'
+
+        return f"<img src=\"{src}\"{alt_attr}{title_attr}{width_attr}{height_attr}{class_attr}>"
 
 
-def html_to_markdown(html: str | Tag, image_map: dict[str, str] | None = None) -> str:
+def html_to_markdown(
+    html: str | Tag,
+    image_map: dict[str, str] | None = None,
+    section_class: str | None = None,
+) -> str:
     """Convert HTML to Markdown using custom converter.
 
     Args:
         html: HTML string or BeautifulSoup Tag.
         image_map: Optional dict mapping remote URLs to local paths.
+        section_class: CSS class name for images in this section.
 
     Returns:
-        Markdown formatted string.
+        Markdown formatted string with HTML img tags.
     """
     if isinstance(html, Tag):
         html = str(html)
 
     converter = GuideMarkdownConverter(
         image_map=image_map,
+        section_class=section_class,
         heading_style="ATX",
         bullets="-",
         code_language="",
@@ -235,11 +272,8 @@ def post_process_markdown(markdown: str) -> str:
                 lines[i] = replacement
         markdown = '\n'.join(lines)
 
-    # Fix title translations that weren't handled during translation
-    title_fixes = {"Geval", "Casus", "behuizing", "geval", "Case","kast"}
-    for old_word in title_fixes:
-        # Fix in main title (first # header) - handle complete title with description
-        markdown = re.sub(rf'^# {old_word} (\d+):? (.+)$', r'# Project \1: \2', markdown, flags=re.MULTILINE | re.IGNORECASE)
+    # Note: Title word fixes (Geval->Project, etc.) are now handled in translator.py
+    # via TITLE_WORD_FIXES and _apply_title_fixes()
 
     # Scale down the first non-QR code image after "## Programmering" header
     lines = markdown.split('\n')
@@ -252,12 +286,16 @@ def post_process_markdown(markdown: str) -> str:
 
         # Once in programming section, find the first image (not QR code) and scale it
         if in_programming_section:
-            # Check if this line contains a markdown image
-            img_match = re.match(r'^\s*!\[\]\(([^)]+)\)\s*$', line.strip())
+            # Check if this line contains an HTML img tag (not QR code)
+            img_match = re.match(r'^(\s*)<img\s+src="([^"]+)"([^>]*)>(\s*)$', line)
             if img_match and 'qrcode' not in line.lower():
-                # Add scaling to make image 50% smaller using CSS style
-                img_path = img_match.group(1)
-                scaled_img = f'<img src="{img_path}" style="width: 50%; height: auto;">'
+                # Add scaling style to make image 50% smaller
+                indent = img_match.group(1)
+                img_path = img_match.group(2)
+                other_attrs = img_match.group(3)
+                trailing = img_match.group(4)
+                # Insert style before the closing >
+                scaled_img = f'{indent}<img src="{img_path}" class="img-half"{other_attrs}>{trailing}'
                 lines[i] = scaled_img
                 # Only scale the first image after the header
                 break
@@ -313,7 +351,9 @@ def generate_guide(
             lang = content.metadata["language"]
             logger.debug(f"    -> Content language: {lang}")
 
-        # Sections
+        # Sections - track current section for image classification
+        current_section_class = "section-header"
+
         for section in content.sections:
             heading = section.get("heading", "")
             level = section.get("level", 2)
@@ -323,14 +363,18 @@ def generate_guide(
             if heading and heading == content.title:
                 continue
 
+            # Update current section class for image classification
             if heading:
+                current_section_class = heading_to_class(heading)
                 prefix = "#" * level
                 parts.append(f"\n{prefix} {heading}\n")
 
-            # Convert each content element
+            # Convert each content element with section context
             for element in section_content:
                 if isinstance(element, Tag):
-                    md = html_to_markdown(element, image_map=image_map)
+                    md = html_to_markdown(
+                        element, image_map=image_map, section_class=current_section_class
+                    )
                     if md:
                         parts.append(md + "\n")
 

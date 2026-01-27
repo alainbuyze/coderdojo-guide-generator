@@ -152,7 +152,8 @@ def enhance_image(input_path: Path, output_path: Path) -> bool:
                 stdout_text = result.stdout.decode('latin1', errors='replace')
 
         if result.returncode != 0:
-            logger.warning(f"    -> Enhancement failed: {stderr_text}")
+            logger.warning(f"    -> Enhancement failed for {input_path.name}")
+            logger.debug(f" Error: {stderr_text}")
             logger.debug(f"    -> Command: {' '.join(cmd)}")
             logger.debug(f"    -> Working directory: {resources_dir}")
             logger.debug(f"    -> stdout: {stdout_text}")
@@ -164,7 +165,7 @@ def enhance_image(input_path: Path, output_path: Path) -> bool:
             #logger.debug(f"    -> Enhanced: {output_path}")
             return True
         else:
-            logger.warning("    -> Output file not created")
+            logger.warning(f"    -> Output file not created for {input_path.name}")
             logger.debug(f"    -> Expected output at: {output_path}")
             logger.debug(f"    -> Output parent exists: {output_path.parent.exists()}")
             logger.debug(f"    -> Output parent writable: {oct(output_path.parent.stat().st_mode)[-3:]}")
@@ -174,7 +175,7 @@ def enhance_image(input_path: Path, output_path: Path) -> bool:
         logger.warning(f"    -> Enhancement timed out for: {input_path}")
         return False
     except Exception as e:
-        logger.error(f"    -> Enhancement error: {e}")
+        logger.error(f"    -> Enhancement error for {input_path}: {e}")
         return False
 
 

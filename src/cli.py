@@ -101,6 +101,15 @@ Examples:
         --input ./guides/case-01.md `
         --css ./custom-print-styles.css
 
+    # Convert all markdown files in a directory to PDFs
+    uv run python -m src.cli print-all --input ./guides
+
+    # Convert all markdown files to specific output directory
+    uv run python -m src.cli print-all -i ./guides -o ./pdfs
+
+    # Convert all markdown files with custom CSS styling
+    uv run python -m src.cli print-all --input ./guides --css ./custom-print-styles.css
+
     # Show supported sources
     uv run python -m src.cli sources
 
@@ -156,6 +165,7 @@ Dependencies:
 import asyncio
 import json
 import re
+import unicodedata
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -223,6 +233,76 @@ def get_output_filename(url: str, title: str) -> str:
 
     # Fall back to title
     return slugify(title)[:60]
+
+
+def extract_case_number(url: str) -> str | None:
+    """Extract case number from URL (e.g., '01' from 'case_01' or 'case-01').
+
+    Args:
+        url: Tutorial URL to parse.
+
+    Returns:
+        Case number as string (e.g., '01', '12') or None if not found.
+    """
+    parsed = urlparse(url)
+    path = parsed.path.lower()
+    match = re.search(r'case[_-]?(\d+)', path)
+    return match.group(1) if match else None
+
+
+def get_project_filename(case_number: str, title: str) -> str:
+    """Generate filename like 'Project 01 - Title' with ASCII-only chars.
+
+    Args:
+        case_number: Case number string (e.g., '01').
+        title: Translated title to include in filename.
+
+    Returns:
+        Filename in format 'Project XX - Title' with ASCII-safe characters.
+    """
+    # Strip "Project XX:" prefix from title to avoid duplication
+    title = re.sub(r'^[Pp]roject\s*\d+[:\s]*', '', title).strip()
+    # Normalize and convert to ASCII
+    normalized = unicodedata.normalize('NFKD', title)
+    ascii_title = normalized.encode('ascii', 'ignore').decode('ascii')
+    # Clean up the title - keep alphanumeric, spaces, and hyphens
+    ascii_title = re.sub(r'[^\w\s-]', '', ascii_title).strip()
+    # Truncate if too long (keep room for "Project XX - ")
+    if len(ascii_title) > 50:
+        ascii_title = ascii_title[:50].rsplit(' ', 1)[0]
+    return f"Project {case_number} - {ascii_title}"
+
+
+def rename_guide_directory(
+    old_dir: Path,
+    new_name: str,
+    output_dir: Path,
+    markdown_content: str
+) -> tuple[Path, str]:
+    """Rename guide directory and update markdown paths.
+
+    Args:
+        old_dir: Current guide directory path.
+        new_name: New name for the directory.
+        output_dir: Parent output directory.
+        markdown_content: Markdown content with paths to update.
+
+    Returns:
+        Tuple of (new_directory_path, updated_markdown_content).
+    """
+    new_dir = output_dir / new_name
+    old_name = old_dir.name
+
+    # Rename directory if it exists and name changed
+    if old_dir.exists() and old_name != new_name:
+        old_dir.rename(new_dir)
+
+    # Update image/qrcode paths in markdown
+    updated_markdown = markdown_content.replace(
+        f"{old_name}/", f"{new_name}/"
+    )
+
+    return new_dir, updated_markdown
 
 
 def use_existing_images(content: ExtractedContent, guide_subdir: Path) -> ExtractedContent:
@@ -425,6 +505,15 @@ async def _generate(
         if qr_count:
             progress.update(task, description=f"Generated {qr_count} QR codes")
 
+        # Rename to project-based name if case number found
+        case_number = extract_case_number(url)
+        if case_number and content.title:
+            new_filename = get_project_filename(case_number, content.title)
+            guide_subdir, guide = rename_guide_directory(
+                guide_subdir, new_filename, output_dir, guide
+            )
+            filename = new_filename
+
         # Save to file at root output directory
         progress.update(task, description="Saving guide...")
         output_path = output_dir / f"{filename}.md"
@@ -618,6 +707,15 @@ async def _generate_single(
 
         # Generate markdown
         guide = generate_guide(content, output_dir=guide_subdir, add_qrcodes=not no_qrcode)
+
+        # Rename to project-based name if case number found
+        case_number = extract_case_number(url)
+        if case_number and content.title:
+            new_filename = get_project_filename(case_number, content.title)
+            guide_subdir, guide = rename_guide_directory(
+                guide_subdir, new_filename, output_dir, guide
+            )
+            filename = new_filename
 
         # Save to file
         output_path = output_dir / f"{filename}.md"
@@ -1169,4 +1267,30 @@ def catalog(input: Path, output: Path | None, title: str, verbose: bool) -> None
 
 
 if __name__ == "__main__":
-    cli()
+    import sys
+    
+    # Check if command line parameters are provided
+    if len(sys.argv) > 1:
+        # Run CLI mode with parameters
+        cli()
+    else:
+        # Run hardcoded test mode
+        print("No parameters provided, running hardcoded test...")
+        
+        # Hardcoded test parameters
+        url = "https://wiki.elecfreaks.com/en/microbit/building-blocks/nezha-inventors-kit/Nezha_Inventor_s_kit_for_microbit_case_75"
+        output_dir = "D:/Coderdojo/Projects"  # Renamed to avoid conflict with function parameter
+        verbose = True
+        no_enhance = False
+        no_translate = False
+        no_qrcode = False
+        no_makecode = False
+        no_download = False
+
+        print(f"Generating guide from: {url}")
+        print(f"Output directory: {output_dir}")
+        print(f"Options: verbose={verbose}, no_enhance={no_enhance}, no_translate={no_translate}")
+        print(f"Options: no_qrcode={no_qrcode}, no_makecode={no_makecode}, no_download={no_download}")
+
+        # Run the generation
+        asyncio.run(_generate(url, output_dir, verbose, no_enhance, no_translate, no_qrcode, no_makecode, no_download))

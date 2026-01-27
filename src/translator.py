@@ -26,6 +26,32 @@ TRANSLATION_DELAY_SECONDS = 0.5
 # Maximum text length for single translation
 MAX_TRANSLATION_LENGTH = 4500
 
+# Word fixes for bad translations (applied to titles)
+TITLE_WORD_FIXES = {
+    "Geval": "Project",
+    "geval": "project",
+    "Casus": "Project",
+    "casus": "project",
+    "Kast": "Project",
+    "kast": "project",
+    "behuizing": "project",
+    "Case": "Project",
+}
+
+
+def _apply_title_fixes(text: str) -> str:
+    """Apply word fixes to translated title.
+
+    Args:
+        text: Translated title text.
+
+    Returns:
+        Title with word fixes applied.
+    """
+    for old_word, new_word in TITLE_WORD_FIXES.items():
+        text = text.replace(old_word, new_word)
+    return text
+
 
 def _get_translator(source: str, target: str):
     """Get the configured translator instance.
@@ -263,9 +289,11 @@ def translate_content(content: ExtractedContent) -> ExtractedContent:
         # Deep copy to avoid modifying original
         translated = deepcopy(content)
 
-        # Translate title
+        # Translate title and apply word fixes
         logger.debug(f"    -> Translating title: {content.title}")
-        translated.title = translate_text(content.title, source, target)
+        translated.title = _apply_title_fixes(
+            translate_text(content.title, source, target)
+        )
         time.sleep(TRANSLATION_DELAY_SECONDS)
 
         # Translate description if present

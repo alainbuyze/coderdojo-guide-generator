@@ -1,211 +1,93 @@
-"""MakeCode image detector for identifying code screenshots and project links."""
+"""MakeCode image detector - finds image/link pairs from HTML structure."""
 
 import logging
 import re
-from typing import Any
+from bs4 import BeautifulSoup, Tag
 
 logger = logging.getLogger(__name__)
 
+# Pattern for MakeCode project URLs
+MAKECODE_URL_PATTERN = re.compile(
+    r"https?://makecode\.microbit\.org/_[A-Za-z0-9]+",
+    re.IGNORECASE,
+)
 
-class MakeCodeImageDetector:
-    """Detects MakeCode code screenshots and associated project links."""
 
-    # Pattern for MakeCode project URLs
-    MAKECODE_URL_PATTERN = re.compile(
-        r"https?://makecode\.microbit\.org/_[A-Za-z0-9]+",
-        re.IGNORECASE,
-    )
+def find_makecode_image_pairs(html: str | Tag) -> dict[str, str]:
+    """Find image URLs paired with their MakeCode project links.
 
-    # Keywords that suggest an image is a code screenshot
-    CODE_IMAGE_KEYWORDS = [
-        "code",
-        "program",
-        "makecode",
-        "scratch",
-        "blocks",
-        "script",
-        "coding",
-        "programma",  # Dutch for program
-    ]
+    Looks for the pattern where a paragraph with an image is immediately
+    followed by a paragraph containing a MakeCode link:
 
-    # Section headings that indicate code content
-    CODE_SECTION_HEADINGS = [
-        "code",
-        "program",
-        "makecode",
-        "coding",
-        "codeer",  # Dutch for code
-        "programmeer",  # Dutch for program
-    ]
+        <p><img src="..."></p>
+        <p>Link: <a href="https://makecode.microbit.org/_xxx">...</a></p>
 
-    def find_makecode_links(self, sections: list[dict[str, Any]]) -> list[str]:
-        """Extract MakeCode project URLs from content sections.
+    Args:
+        html: HTML string or BeautifulSoup Tag to search.
 
-        Args:
-            sections: List of section dicts with heading and content.
+    Returns:
+        Dictionary mapping image src URLs to MakeCode project URLs.
+    """
+    if isinstance(html, str):
+        soup = BeautifulSoup(html, "html.parser")
+    else:
+        soup = html
 
-        Returns:
-            List of MakeCode project URLs found in the content.
-        """
-        logger.debug(f"Searching for MakeCode links in {len(sections)} sections")
-        links = []
+    pairs: dict[str, str] = {}
 
-        for section in sections:
-            # Check section heading
-            heading = section.get("heading", "")
-            found_in_heading = self.MAKECODE_URL_PATTERN.findall(heading)
-            links.extend(found_in_heading)
+    # Find all <a> tags with MakeCode URLs
+    for link in soup.find_all("a", href=MAKECODE_URL_PATTERN):
+        makecode_url = link.get("href", "")
+        if not makecode_url:
+            continue
 
-            # Check section content (BeautifulSoup Tag objects)
-            content = section.get("content", [])
-            for element in content:
-                # Convert element to string to search for URLs
-                element_str = str(element)
-                found_in_content = self.MAKECODE_URL_PATTERN.findall(element_str)
-                links.extend(found_in_content)
+        # Find the parent <p> of this link
+        link_paragraph = link.find_parent("p")
+        if not link_paragraph:
+            continue
 
-        # Remove duplicates while preserving order
-        unique_links = list(dict.fromkeys(links))
-        logger.debug(f"Found {len(unique_links)} unique MakeCode links")
-        return unique_links
+        # Look back up to 3 paragraphs for the image
+        img_src = None
+        prev_sibling = link_paragraph.find_previous_sibling()
+        for _ in range(3):
+            if not prev_sibling:
+                break
+            if prev_sibling.name == "p":
+                img = prev_sibling.find("img")
+                if img:
+                    img_src = img.get("src", "")
+                    break
+            prev_sibling = prev_sibling.find_previous_sibling()
 
-    def _is_code_image(self, image: dict[str, str], index: int) -> bool:
-        """Check if an image is likely a code screenshot.
+        if not img_src:
+            continue
 
-        Args:
-            image: Image dict with src, alt, title.
-            index: Image index in the list.
+        pairs[img_src] = makecode_url
+        logger.debug(f"Found pair: {img_src} -> {makecode_url}")
 
-        Returns:
-            True if the image appears to be a code screenshot.
-        """
-        # Check alt text and title for code-related keywords
-        alt = image.get("alt", "").lower()
-        title = image.get("title", "").lower()
-        src = image.get("src", "").lower()
+    if len(pairs) == 0:
+        logger.warning("No MakeCode image pairs found")
+    else:
+        logger.debug(f"Found {len(pairs)} MakeCode image pairs")
 
-        # For src, only check the filename portion to avoid false positives
-        # from path components like "building-blocks"
-        if src:
-            # Extract filename from URL/path
-            filename = src.split("/")[-1].split("?")[0].lower()
-        else:
-            filename = ""
+    return pairs
 
-        # Check alt and title fully, but only filename for src
-        for keyword in self.CODE_IMAGE_KEYWORDS:
-            if keyword in alt or keyword in title or keyword in filename:
-                logger.debug(f"Image {index} matched keyword '{keyword}': {alt or title or filename}")
-                return True
 
-        return False
+if __name__ == "__main__":
+    """Test with sample HTML."""
+    logging.basicConfig(level=logging.DEBUG)
 
-    def _is_code_section(self, heading: str) -> bool:
-        """Check if a section heading indicates code content.
+    test_html = """
+    <div>
+        <p><img src="https://example.com/image1.png"></p>
+        <p>Link: <a href="https://makecode.microbit.org/_abc123">https://makecode.microbit.org/_abc123</a></p>
 
-        Args:
-            heading: Section heading text.
+        <p>Some other text</p>
 
-        Returns:
-            True if the heading suggests code content.
-        """
-        heading_lower = heading.lower()
-        return any(keyword in heading_lower for keyword in self.CODE_SECTION_HEADINGS)
+        <p><img src="https://example.com/image2.png"></p>
+        <p>Link: <a href="https://makecode.microbit.org/_xyz789">https://makecode.microbit.org/_xyz789</a></p>
+    </div>
+    """
 
-    def find_code_images_in_sections(
-        self, sections: list[dict[str, Any]], all_images: list[dict[str, str]]
-    ) -> list[int]:
-        """Find image indices that appear in code-related sections.
-
-        Args:
-            sections: List of section dicts with heading and content.
-            all_images: List of all image dicts.
-
-        Returns:
-            List of image indices that are in code sections.
-        """
-        code_image_indices = []
-
-        # Build a set of image srcs for quick lookup
-        image_src_to_idx = {img.get("src", ""): idx for idx, img in enumerate(all_images)}
-
-        for section in sections:
-            heading = section.get("heading", "")
-            if not self._is_code_section(heading):
-                continue
-
-            # Find images in this section's content
-            content = section.get("content", [])
-            for element in content:
-                element_str = str(element)
-                # Look for img tags
-                for src, idx in image_src_to_idx.items():
-                    if src and src in element_str:
-                        if idx not in code_image_indices:
-                            code_image_indices.append(idx)
-                            logger.debug(f"Found code image {idx} in section '{heading}'")
-
-        return code_image_indices
-
-    def match_images_to_links(
-        self, images: list[dict[str, str]], links: list[str], sections: list[dict[str, Any]] | None = None
-    ) -> dict[int, str]:
-        """Match code screenshots to their MakeCode project URLs.
-
-        Uses heuristics to pair images with links:
-        1. Images in code-related sections (by heading)
-        2. Images with code keywords in alt/title/src
-        3. Multiple code images map to multiple links in order
-
-        Args:
-            images: List of image dicts with src, alt, title.
-            links: List of MakeCode project URLs.
-            sections: Optional list of sections for context-based detection.
-
-        Returns:
-            Dictionary mapping image index to MakeCode URL.
-        """
-        logger.debug(f"Matching {len(images)} images to {len(links)} MakeCode links")
-
-        if not links:
-            logger.debug("No MakeCode links to match")
-            return {}
-
-        # Find code images by keyword matching
-        keyword_code_images = [
-            idx for idx, img in enumerate(images) if self._is_code_image(img, idx)
-        ]
-
-        # Find code images by section context
-        section_code_images = []
-        if sections:
-            section_code_images = self.find_code_images_in_sections(sections, images)
-
-        # Combine and deduplicate, preserving order
-        all_code_indices = []
-        for idx in keyword_code_images + section_code_images:
-            if idx not in all_code_indices:
-                all_code_indices.append(idx)
-
-        # Sort by index to maintain image order
-        all_code_indices.sort()
-
-        if not all_code_indices:
-            logger.debug("No code images detected")
-            return {}
-
-        logger.debug(f"Found {len(all_code_indices)} code images (keywords: {len(keyword_code_images)}, sections: {len(section_code_images)})")
-
-        # Match images to links in order
-        matches = {}
-        for i, img_idx in enumerate(all_code_indices):
-            if i < len(links):
-                matches[img_idx] = links[i]
-                logger.debug(f"Matched image {img_idx} to link {links[i]}")
-
-        if len(links) > len(all_code_indices):
-            logger.warning(
-                f"Found {len(links)} MakeCode links but only {len(all_code_indices)} code images"
-            )
-
-        return matches
+    pairs = find_makecode_image_pairs(test_html)
+    print(f"Found pairs: {pairs}")

@@ -8,7 +8,7 @@ from playwright.async_api import Browser
 
 from src.core.config import get_settings
 from src.makecode_capture import capture_multiple_screenshots
-from src.makecode_detector import MakeCodeImageDetector
+from src.makecode_detector import find_makecode_image_pairs
 from src.sources.base import ExtractedContent
 
 settings = get_settings()
@@ -34,25 +34,35 @@ async def replace_makecode_screenshots(
     """
     logger.debug(f" * {inspect.currentframe().f_code.co_name} > Processing MakeCode replacements")
 
-    # Step 1: Detect MakeCode links and code images
-    detector = MakeCodeImageDetector()
+    # Find image/MakeCode URL pairs from section content
+    # Aggregate all content elements first, then call detector once
+    all_html_parts = []
+    for section in content.sections:
+        all_html_parts.extend(section.get("content", []))
 
-    makecode_links = detector.find_makecode_links(content.sections)
-    if not makecode_links:
-        logger.debug("    -> No MakeCode links found, skipping replacement")
+    src_to_makecode: dict[str, str] = {}
+    if all_html_parts:
+        combined_html = "".join(str(e) for e in all_html_parts)
+        src_to_makecode = find_makecode_image_pairs(combined_html)
+
+    if not src_to_makecode:
+        logger.debug("    -> No MakeCode image pairs found, skipping replacement")
         return content
 
-    logger.debug(f"    -> Found {len(makecode_links)} MakeCode links")
+    logger.debug(f"    -> Found {len(src_to_makecode)} MakeCode image pairs")
 
-    # Step 2: Match images to links (pass sections for context-based detection)
-    image_to_link_map = detector.match_images_to_links(content.images, makecode_links, content.sections)
+    # Build index-based mapping for capture function
+    image_to_link_map: dict[int, str] = {}
+    for idx, img in enumerate(content.images):
+        src = img.get("src", "")
+        if src in src_to_makecode:
+            image_to_link_map[idx] = src_to_makecode[src]
+
     if not image_to_link_map:
-        logger.debug("    -> No code images matched to links, skipping replacement")
+        logger.debug("    -> No images matched to MakeCode links")
         return content
 
-    logger.debug(f"    -> Matched {len(image_to_link_map)} images to MakeCode links")
-
-    # Step 3: Capture Dutch screenshots
+    # Capture Dutch screenshots
     images_dir = output_dir / settings.IMAGE_OUTPUT_DIR
     images_dir.mkdir(parents=True, exist_ok=True)
 
@@ -66,31 +76,24 @@ async def replace_makecode_screenshots(
 
     logger.debug(f"    -> Captured {len(captured_screenshots)} Dutch screenshots")
 
-    # Step 4: Update image references
+    # Update image references
     replaced_count = 0
     guide_name = output_dir.name
     for img_idx, screenshot_path in captured_screenshots.items():
         if img_idx < len(content.images):
-            # Store original for potential backup/debugging
             original_src = content.images[img_idx].get("src")
             logger.debug(f"    -> Replacing image {img_idx}: {original_src}")
 
-            # Update image dict with Dutch screenshot (relative to root output directory)
             relative_path = str(Path(guide_name) / settings.IMAGE_OUTPUT_DIR / screenshot_path.name)
             content.images[img_idx]["local_path"] = relative_path
             content.images[img_idx]["makecode_url"] = image_to_link_map[img_idx]
             content.images[img_idx]["replaced_with_dutch"] = True
-
-            # Keep original URL for reference
-            if "src" not in content.images[img_idx].get("_original", {}):
-                content.images[img_idx]["_original_src"] = original_src
-
+            content.images[img_idx]["_original_src"] = original_src
             replaced_count += 1
 
     logger.debug(f"    -> Replaced {replaced_count} images with Dutch versions")
 
-    # Update metadata
     content.metadata["makecode_replacements"] = replaced_count
-    content.metadata["makecode_links_found"] = len(makecode_links)
+    content.metadata["makecode_pairs_found"] = len(src_to_makecode)
 
     return content
