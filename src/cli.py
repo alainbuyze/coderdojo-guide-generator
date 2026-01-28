@@ -165,6 +165,7 @@ Dependencies:
 import asyncio
 import json
 import re
+import shutil
 import unicodedata
 from pathlib import Path
 from urllib.parse import urlparse
@@ -295,6 +296,9 @@ def rename_guide_directory(
 
     # Rename directory if it exists and name changed
     if old_dir.exists() and old_name != new_name:
+        # Remove existing target directory if it exists (allows overwriting)
+        if new_dir.exists():
+            shutil.rmtree(new_dir)
         old_dir.rename(new_dir)
 
     # Update image/qrcode paths in markdown

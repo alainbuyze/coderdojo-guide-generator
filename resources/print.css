@@ -131,6 +131,14 @@ img {
     background-color: #fafafa;
 }
 
+.section-details-voor-de-code {
+    display: none;
+}
+
+.section-softwareprogrammering {
+    display: none;
+}
+
 .construction-step img {
     max-width: 174mm;
     max-height: 110mm;
